@@ -19,12 +19,16 @@ namespace ScheduleMaker
 {
     public partial class MainPage : UserControl
     {
-        List<Class> classes;
-        private int classesIndex = 0;
-        List<Course> possibleSections;
-        int totalClassCount = 0;
-        List<List<Course>> confirmedSections;
+        List<Class> classes;                    //A list of all the classes
+        private int classesIndex = 0;           //An index that represents the next free space in the classes list.
+        List<Course> possibleSections;          //A list of sections that are about to be added to the scheduling
+        int totalClassCount = 0;                //The total number of classes
+        List<List<Course>> confirmedSections;   //A list of lists of courses grouped by schedule grid
 
+        /* Constructor.
+         * 
+         * Here we start all the GUI stuff.
+         */
         public MainPage()
         {
             InitializeComponent();
@@ -32,20 +36,29 @@ namespace ScheduleMaker
             btnRemoveFromList.IsEnabled = false;
             btnSubmit.IsEnabled = false;
             confirmedSections = new List<List<Course>>();
-            lstExclude.Visibility = System.Windows.Visibility.Collapsed;
+            lstExclude.Visibility = System.Windows.Visibility.Collapsed;    //These controls need to be invisible at the start
             txtExclude.Visibility = System.Windows.Visibility.Collapsed;
             btnExclude.Visibility = System.Windows.Visibility.Collapsed;
             lblExcludeInfo.Visibility = System.Windows.Visibility.Collapsed;
         }
 
+        /*  Called when the search class text box recieves focus.
+         * 
+         * Clears the textbox if it contains the default value.
+         */ 
         private void TextBox_GotFocus_1(object sender, RoutedEventArgs e)
         {
-            if (courseInput.Text == "Search courses...")
+            if (courseInput.Text == "Search courses...")    //This is the textbox's default text
             {
                 courseInput.Text = "";
             }
         }
 
+        /* Called when a key is pressed in the search class text box
+         * 
+         * Currently we're only interested when the enter button is pressed.
+         *  In which case, we will begin a search for classes.
+         */
         private void courseInput_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -57,7 +70,7 @@ namespace ScheduleMaker
                 classesIndex = 0;
                 classList.Items.Clear();
                 btnAddToList.IsEnabled = false;
-                //Clear entry
+                //Clear any information in the information box
                 classInfoBox.Text = "";
                 //Figure out what department we're looking for
                 string input = courseInput.Text;
@@ -65,6 +78,7 @@ namespace ScheduleMaker
                 courseInput.Text = "";
                 int position = -1;                   //The position of where the letters end and numbers start
                 input = input.Replace(" ", "");      //Make it fit the format we're expecting -- without spaces
+                //Check each character in the input string.
                 foreach (char thing in input)
                 {
                     position++;
@@ -79,10 +93,10 @@ namespace ScheduleMaker
                         continue;
                     }
                 }
-                if (position == 1) position++;
+                if (position == 1) position++;  //We can't take a substring of length one. So cheat and call it 2.
                 string department = input.Substring(0, position).ToLower();
-                string number;
-                if (department.Length + 1 == input.Length) number = "";
+                string number;                  //This is the course number ie "18000"
+                if (department.Length + 1 == input.Length) number = ""; 
                 else number = input.Substring(position);
                 //Perform search
                 XmlReader reader = XmlReader.Create("classdata.xml");
@@ -96,17 +110,21 @@ namespace ScheduleMaker
                     
                 } while (reader.GetAttribute(0).ToLower() != department);
 
-                bool block = false;
+                bool block = false; //If we're in a class element that we're not looking for, we need to block
+                                    //reading the courses in that element.
+
                 //Read in all the classes in the department
                 do
                 {
-                    reader.Read();
+                    reader.Read();  //Read the next node
                     switch(reader.NodeType)
                     {
                         case XmlNodeType.Element:
                             switch (reader.Name)
                             {
                                 case "class":
+                                    //The node is a class element and we need to add it to the class list
+                                    //  if it's one we're looking for.
                                     if (number == "" || reader.GetAttribute(0).ToLower().IndexOf(number) >= 0)
                                     {
                                         classes.Add(new Class());
@@ -119,6 +137,7 @@ namespace ScheduleMaker
                                     else block = true;
                                     break;
                                 case "section":
+                                    //If we're in a correct class element, we're going to get the data for the course.
                                     if (!block)
                                     {
                                         Course course = new Course();
@@ -155,9 +174,10 @@ namespace ScheduleMaker
                         default:
                             break;
                     }
+                    //If the element is the end part (</element>), we need to do some cleaning up.
                     if (reader.NodeType == XmlNodeType.EndElement)
                     {
-                        if (reader.Name == "department") break;
+                        if (reader.Name == "department") break; //If we leave the department we're looking in, return.
                         if (reader.Name == "class")
                         {
                             if (block)
@@ -171,38 +191,54 @@ namespace ScheduleMaker
                 // All the class data is loaded
                 foreach (Class entry in classes)
                 {
+                    //Add all of the classes we found to the GUI class list
                     classList.Items.Add(entry);
                 }
             }
         }
 
+        /* Called when the selection is changed on the searched class list.
+         * 
+         * Displays the correct class information and enables a button.
+         */
+
         private void classList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            //First, make sure items are being added. We don't care if they're being removed.
             if (e.RemovedItems.Count > 0 && e.AddedItems.Count < 1)
             {
                 return;
             }
+            //The class's information that we want to display is the class that was selected - the added item.
             Class classToDisplay = (Class)e.AddedItems[0];
             classInfoBox.Text = "";
             classInfoBox.Text += classToDisplay.course + " - " + classToDisplay.name + '\n' + '\n';
             classInfoBox.Text += classToDisplay.description + "\n";
             classInfoBox.Text += classToDisplay.credits;
-            btnAddToList.IsEnabled = true;
+            btnAddToList.IsEnabled = true;  //If there is an item selected, we can allow it to be added to the pending classes
         }
 
-        //This is the add button
+        /* This function is called when the add button is clicked.
+         *
+         * Moves the currently selected item from the searched classes to the pending classes.
+         */
         private void Button_Click_1(object sender, RoutedEventArgs e)
         {
             Class classToMove = (Class)classList.SelectedItem;
             lstFinalClasses.Items.Add(classToMove);
             classList.Items.Remove(classToMove);
-            classInfoBox.Text = "";
-            btnSubmit.IsEnabled = true;
+            classInfoBox.Text = "";                 //Make sure the information is clear, because we are deselecting
+            btnSubmit.IsEnabled = true;             //Now that the final list is populated with at least one value,
+                                                    // we can allow the submit button to be pushed.
             
             //If the list is empty, disable the button
             if (classList.SelectedItems.Count < 1) btnAddToList.IsEnabled = false;
         }
 
+        /* Called when the selectionis changed on the final (pending) list.
+         * 
+         * Resets some GUI stuff. 
+         */
         private void lstFinalClasses_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             txtExclude.Text = "";
@@ -220,16 +256,21 @@ namespace ScheduleMaker
             txtFinalInfo.Text += classToDisplay.course + " - " + classToDisplay.name + '\n' + '\n';
             txtFinalInfo.Text += classToDisplay.description + "\n";
             txtFinalInfo.Text += classToDisplay.credits;
-            btnRemoveFromList.IsEnabled = true;
+            btnRemoveFromList.IsEnabled = true; //Allows items to be removed from list list
             btnSubmit.IsEnabled = true;
-
-            lstExclude.Items.Clear();
+            
+            lstExclude.Items.Clear();           //Clears the GUI list of sections for exclusion
+            //Add each section for the selected course to the excludable items list.
             foreach (Course course in classToDisplay.sections)
             {
                 lstExclude.Items.Add(course);
             }
         }
 
+        /* Called when the remove button is clicked.
+         * 
+         * Removes a class from the final classes list.
+         */
         private void btnRemoveFromList_Click(object sender, RoutedEventArgs e)
         {
             Class classToRemove = (Class)lstFinalClasses.SelectedItem;
@@ -239,15 +280,32 @@ namespace ScheduleMaker
             btnRemoveFromList.IsEnabled = false;
         }
 
+        /* Returns if a number is between (or equal to) two other numbers.
+         * @param start : The lower bound
+         * @param question : The number in question. The one we're trying to determine if it's between or not.
+         * @param end : The higher bound
+         * 
+         * @return A boolean value. True if the question number is between the other two. False otherwise.
+         */
         private bool isBetween(int start, int question, int end)
         {
-            if (question >= start || question <= end)
+            if (question >= start && question <= end)
             {
                 return true;
             }
             return false;
         }
 
+        /* Asks if two time ranges given as strings are intersecting.
+         *  Time format: "11:30 am - 12:30 pm"
+         * We do this by converting the times to a whole number system that can be used to represent different times.
+         *  EX: 1:00 = 1, 1:10 = 2, etc. That way we can test for intersection by comparing the whole numbers.
+         * 
+         * @param time1 : A string that represents the first time gap.
+         * @param time2 : A string that represents the second time gap.
+         * 
+         * @return A boolean value that is true if the times intersect. False otherwise.
+         */
         private bool doTimesIntersect(String time1, String time2)
         {
             String startTime, endTime = "";
@@ -301,19 +359,28 @@ namespace ScheduleMaker
             return false;
         }
 
+        /* Called in a background thread. Used to generate bitstrings of a specified length. EX: ("11001")
+         *  Actually runs pretty quickly, until you get to about length 23 and above. 2^23 strings of length 23
+         *  isn't a fast process.
+         * 
+         * We use these bitstrings to represent all possible combinations of the sections (even invalid ones).
+         * 
+         * @param e.Argument This value passed through the BackgroundWorker call is the length of the bitstring.
+         */
         private void generateAllBitStrings(object sender, DoWorkEventArgs e)
         {
-            int length = Convert.ToInt32(e.Argument as string);
-            List<string> results = new List<string>();
-            int n = length;
-            int[] cutoffs = new int[n+1];
-            Array.Clear(cutoffs, 0, n+1);
-            int nsquared = (int) Math.Pow(2,n);
+            int n = Convert.ToInt32(e.Argument as string);          //The length of the bitstrings
+            List<string> results = new List<string>();              //A collection of the bitstrings so far
+            int[] cutoffs = new int[n + 1];
+            Array.Clear(cutoffs, 0, n+1);                           //Initialize the array to 0s
+            int nsquared = (int) Math.Pow(2,n);                     //This is the target number of strings to generate
+            //Stuff below here is for calculating how to update the progress bar
             int percentStep = nsquared / 100;
             if (percentStep == 0) percentStep = 1;
             int percentJump = nsquared / percentStep;
             if (percentJump == 0) percentJump = 1;
             else percentJump = 100 / percentJump;
+            //Begin bitstring generation
             for (int row = 1; row <= nsquared; row++)
             {
                 string bitstring = "";
@@ -331,10 +398,11 @@ namespace ScheduleMaker
                     bitstring += (row <= cutoffs[column]) ? "1" : "0";
                 }
                 results.Add(bitstring);
-                //After a certain amount of rows, we need to pass the data into a new thread that will evaluate the
-                //If our bitstring candidates are good
+                //After a certain amount of rows, we need to pass the data into a new thread that will evaluate
+                //if our bitstring candidates are valid combinations of courses.
                 if (row % 10000 == 0)
                 {
+                    //Make a new BackgroundWorker that will test our combinations
                     BackgroundWorker checkstringsWorker = new BackgroundWorker();
                     checkstringsWorker.WorkerSupportsCancellation = false;
                     checkstringsWorker.WorkerReportsProgress = false;
@@ -344,16 +412,21 @@ namespace ScheduleMaker
                 }
                 if (row % percentStep == 0)
                 {
-                    //Thread.Sleep(1);
-                    //After a certain amount of time, we need to call another background process
-                    //for deciding if a class is a possibility or not and then adding it to the GUI
+                    //Update the progress bar and report a step, which should display combination on the GUI
                     this.Dispatcher.BeginInvoke(delegate { progress.Value += percentJump; });
                     (sender as BackgroundWorker).ReportProgress(0, null);
                 }
             }
+            //Because the math for the percent step/jump isn't 100% accurate, when we are done checking combinations
+            // we should "cheat" and set the progress bar to 100.
             this.Dispatcher.BeginInvoke(delegate { progress.Value = 100; });
         }
 
+        /* Evaluates bitstrings as section combinations.
+         *  If a combination is a valid schedule, then we add it to a global list of confirmed classes.
+         * 
+         * @param e.Argument Passed from the caller, it is the list of bitstrings that have been generated
+         */
         private void checkBitstrings(object sender, DoWorkEventArgs e)
         {
             foreach (string bitstring in (e.Argument as List<string>))
@@ -379,22 +452,30 @@ namespace ScheduleMaker
             }
         }
 
+        /* Tests if a collection of courses are valid for a schedule.
+         * 
+         * @param possibilites A list of courses that need evaluated.
+         * 
+         * @return A boolean value - true if the combination is valid, false otherwise.
+         */
         private bool combinationSuccessful(List<Course> possibilities)
         {
             //First check that all classes are represented.
             int classCount = totalClassCount;
-            Dictionary<string, List<Course>> classesDict = new Dictionary<string, List<Course>>();
+            Dictionary<string, List<Course>> classesDict = new Dictionary<string, List<Course>>();  //"class", List(Courses)
             foreach (Course current in possibilities)
             {
                 string parent = current.parentClass;
                 if (!(classesDict.ContainsKey(parent)))
                 {
+                    //If the class name isn't in the dictionary, add it.
                     List<Course> toAdd = new List<Course>();
                     toAdd.Add(current);
                     classesDict.Add(parent, toAdd);
                 }
                 else
                 {
+                    //Add the current course under the parent class name in the dictionary.
                     List<Course> courses;
                     classesDict.TryGetValue(current.parentClass, out courses);
                     courses.Add(current);
@@ -406,9 +487,11 @@ namespace ScheduleMaker
                 return false;
             }
             else return true;
-            //Add a working possibility to a global list, then periodically flush the list to the GUI
         }
 
+        /* Called when the bitstring worker reports progress.
+         *  Should update the GUI to reflect schedules that work
+         */
         private void reportProgress(object sender, ProgressChangedEventArgs e)
         {
             List<List<Course>> reportingList = new List<List<Course>>();
@@ -427,6 +510,10 @@ namespace ScheduleMaker
             }
         }
 
+        /* Called when the submit button is clicked. Initiliazes some data and starts the schedule
+         *  generation process.
+         * 
+         */
         private void btnSubmit_Click(object sender, RoutedEventArgs e)
         {
             int count = 0;
@@ -454,7 +541,7 @@ namespace ScheduleMaker
             bitstringworker.RunWorkerAsync("" + totalClasses);
             totalClassCount = totalClasses;
             txtFinalInfo.Text = "";
-            return;
+            return; //Don't go any farther while I'm debugging.
             foreach (Class finalClass in lstFinalClasses.Items)
             {
                 count++;
@@ -500,13 +587,19 @@ namespace ScheduleMaker
             }
         }
 
+        /* Draws a section's meeting times on the specified grid.
+         * 
+         * @param grid : The grid to draw on
+         * @param startTime : The starting time of the section  (Form: "11:30 am")
+         * @param endTime : The ending time of the section      (Form: "12:30 pm")
+         * @param days : The days the section meets
+         */
         private void drawSchedule(Grid grid, string startTime, string endTime, string days)
         {
             //Change "11:30 am" to "11:30"
-            txtFinalInfo.Text = "";
-            txtFinalInfo.Text += startTime + " - " + endTime + "\n";
             startTime.Replace(" ", "");
             endTime.Replace(" ", "");
+            //Begin parsing the time string for what we need. "11", "30", "am"
             string startMeridian = startTime.Substring(startTime.Length - 2, 2);
             string endMeridian = endTime.Substring(endTime.Length - 2, 2);
             startTime = startTime.Substring(0, startTime.Length - 2);
@@ -517,6 +610,9 @@ namespace ScheduleMaker
             int hourStart = Convert.ToInt32(splitStartTime[0]);
             int hourEnd = Convert.ToInt32(splitEndTime[0]);
 
+            //Do position calculation for the start time.
+            // Our system starts at 7:00 am, but the grid starts at 7:30. So we start the position at 3.
+            // Then, every 10 minutes is another position, so each hour is 6 positions.
             int positionStart = 3;
             //Make our clock a 24 hour system
             if (startMeridian == "pm") hourStart += 12;
@@ -526,8 +622,8 @@ namespace ScheduleMaker
             txtFinalInfo.Text += hourStart+"\n";
 
             positionStart += (int)((Math.Floor((Convert.ToDouble(splitStartTime[1]))))/10.0);
-            txtFinalInfo.Text += (int)((Math.Floor((Convert.ToDouble(splitStartTime[1])))) / 10.0) + "\n";
 
+            //Position calculation for the end time. Same as above.
             int positionEnd = 3;
             //Make our clock a 24 hour system
             if (endMeridian == "pm") hourEnd += 12;
@@ -547,9 +643,9 @@ namespace ScheduleMaker
                 block.Fill = new SolidColorBrush(Colors.Blue);
                 block.Stroke = new SolidColorBrush(Colors.Black);
                 block.StrokeThickness = 2.0d;
-                block.RadiusX = block.RadiusY = 5.0d;
+                block.RadiusX = block.RadiusY = 5.0d;               //Rounds the block corner.
                 block.Width = ((tabBase.ActualWidth / 6) + .80f);
-                block.Height = (positionEnd - positionStart) * 6.7;
+                block.Height = (positionEnd - positionStart) * 6.7; //Each position is 6.7 points tall.
                 switch (character)
                 {
                     case 'm':
@@ -577,6 +673,13 @@ namespace ScheduleMaker
             grid.Children.Add(canvas);
         }
 
+        /* Called when the tab is switched.
+         * 
+         * Because I'm using a hidden "template" tab for placing the times and day names on a tab,
+         *  I have to make sure the tab is only being used in one tab at a time. So when the tab
+         *  selection changes, I remove the template tab from removed tab, and add it to the tab
+         *  that is about to be displayed.
+         */
         private void tabBase_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (e.RemovedItems.Count < 1) return;
@@ -585,12 +688,19 @@ namespace ScheduleMaker
             }
             else if (e.AddedItems[0] == mainTab)
             {
+                //If we're switching to the main tab, we want to make sure that we don't overlay times and days
+                // like the other tabs.
                 ((Grid)((TabItem)e.RemovedItems[0]).Content).Children.Remove(grdSchedule);
                 return;
             }
             ((Grid)((TabItem)e.RemovedItems[0]).Content).Children.Remove(grdSchedule);
             ((Grid)((TabItem)e.AddedItems[0]).Content).Children.Add(grdSchedule);
         }
+
+        /* Called when the exclusion checkbox is checked.
+         * 
+         * We just update the visibility.
+         */
 
         private void chkExclude_Checked(object sender, RoutedEventArgs e)
         {
@@ -600,14 +710,24 @@ namespace ScheduleMaker
             lblExcludeInfo.Visibility = System.Windows.Visibility.Visible;
         }
 
+        /* Called when the exclusion checkbox is checked.
+         * 
+         * We just update the visibility.
+         */
+
         private void chkExclude_Unchecked(object sender, RoutedEventArgs e)
         {
+            //Not visible
             lstExclude.Visibility = System.Windows.Visibility.Collapsed;
             txtExclude.Visibility = System.Windows.Visibility.Collapsed;
             btnExclude.Visibility = System.Windows.Visibility.Collapsed;
             lblExcludeInfo.Visibility = System.Windows.Visibility.Collapsed;
         }
 
+        /* Called when the selection changes in the exclusion list.
+         * 
+         * We want to display information just like in the class info box. 
+         */
         private void lstExclude_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (e.RemovedItems.Count > 0 && e.AddedItems.Count < 1)
