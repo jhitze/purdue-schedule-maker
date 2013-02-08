@@ -1,0 +1,81 @@
+﻿<UserControl
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:sdk="http://schemas.microsoft.com/winfx/2006/xaml/presentation/sdk" x:Class="ScheduleMaker.MainPage"
+    mc:Ignorable="d"
+    d:DesignHeight="300" d:DesignWidth="400">
+
+    <Grid x:Name="LayoutRoot" Background="White" Margin="0,0,-397,-398">
+
+        <sdk:TabControl x:Name="tabBase" HorizontalAlignment="Left" Height="696" VerticalAlignment="Top" Width="797" TabStripPlacement="Left" SelectionChanged="tabBase_SelectionChanged">
+            <sdk:TabItem x:Name="mainTab" Header="Main">
+                <Grid>
+                    <TextBox x:Name="courseInput" HorizontalAlignment="Right" Height="23" Margin="0,5,185,0" TextWrapping="Wrap" Text="Search courses..." VerticalAlignment="Top" Width="330" RenderTransformOrigin="0.14,0.734" VerticalScrollBarVisibility="Disabled" GotFocus="TextBox_GotFocus_1" KeyDown="courseInput_KeyDown"/>
+                    <sdk:Label Margin="27,5,0,656" RenderTransformOrigin="0.492,0.485" Content="Enter the course you wish to add:" HorizontalAlignment="Left" Width="205"/>
+                    <sdk:Label HorizontalAlignment="Left" Margin="27,38,0,623" Width="91" Content="Classes"/>
+                    <Border BorderBrush="Black" BorderThickness="1" HorizontalAlignment="Left" Height="649" Margin="10,33,0,0" VerticalAlignment="Top" Width="723" CornerRadius="10" />
+                    <Border BorderBrush="Black" BorderThickness="1" HorizontalAlignment="Left" Height="217" Margin="23,423,0,0" VerticalAlignment="Top" Width="698" CornerRadius="10" >
+                        <sdk:Label Content="Options" Margin="9,-1,636,197"/>
+                    </Border>
+                    <CheckBox x:Name="chkExclude" Content="You want to exclude sections from results." Margin="38,445,445,219" Checked="chkExclude_Checked" Unchecked="chkExclude_Unchecked"/>
+                    <CheckBox x:Name="chkSmiles" Content="You would like to see more smiley faces." Margin="38,607,445,57"/>
+                    <sdk:Label Margin="27,230,645,432" Content="Your classes" />
+                    <ListBox x:Name="classList" HorizontalAlignment="Left" Height="155" Margin="23,66,0,0" VerticalAlignment="Top" Width="236" SelectionChanged="classList_SelectionChanged" RenderTransformOrigin="0.515,0.887"/>
+                    <TextBox x:Name="classInfoBox" TextWrapping="Wrap" Text="" Margin="272,66,22,463" IsReadOnly="True" VerticalScrollBarVisibility="Auto"/>
+                    <Button x:Name="btnAddToList" Content="Add to class list" Margin="141,38,484,623" Click="Button_Click_1"/>
+                    <ListBox x:Name="lstFinalClasses" Margin="23,263,484,266" SelectionChanged="lstFinalClasses_SelectionChanged"/>
+                    <TextBox x:Name="txtFinalInfo" HorizontalAlignment="Left" Height="155" Margin="272,263,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Top" Width="449" IsReadOnly="True" VerticalScrollBarVisibility="Auto"/>
+                    <Button x:Name="btnRemoveFromList" Content="Remove from list" HorizontalAlignment="Left" Margin="141,230,0,0" VerticalAlignment="Top" Width="116" Click="btnRemoveFromList_Click"/>
+                    <Button x:Name="btnSubmit" Content="Create schedule options" HorizontalAlignment="Center" Margin="292,652,306,0" VerticalAlignment="Top" Width="145" Click="btnSubmit_Click"/>
+                    <ListBox x:Name="lstExclude" HorizontalAlignment="Left" Height="182" Margin="353,445,0,0" VerticalAlignment="Top" Width="100" SelectionChanged="lstExclude_SelectionChanged"/>
+                    <Button x:Name="btnExclude" Content="Exclude" HorizontalAlignment="Left" Margin="458,445,0,0" VerticalAlignment="Top" Width="75"/>
+                    <TextBox x:Name="txtExclude" HorizontalAlignment="Left" Height="155" Margin="458,472,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="250" IsReadOnly="True"/>
+                    <sdk:Label x:Name="lblExcludeInfo" HorizontalAlignment="Left" Height="65" Margin="71,470,0,0" VerticalAlignment="Top" Width="227" Content="Only use this is you have a reason.&#xD;&#xA;Excluding a course that is required&#xD;&#xA;(IE: It is linked to another) could result&#xD;&#xA;in 0 schedule options being created."/>
+                    <ProgressBar x:Name="progress" Margin="450,652,35,10"/>
+                </Grid>
+            </sdk:TabItem>
+            <sdk:TabItem x:Name="tabLayout" Header="Text" Visibility="Collapsed">
+                <Grid x:Name="grdSchedule" Margin="0,0,0,427">
+                    <sdk:Label x:Name="lblMonday" HorizontalAlignment="Left" Height="20" VerticalAlignment="Top" Width="51" Content="Monday" Margin="80,35,0,0"/>
+                    <sdk:Label x:Name="lblTuesday" HorizontalAlignment="Left" Margin="211,35,0,0" Width="53" Content="Tuesday" Height="20" VerticalAlignment="Top"/>
+                    <sdk:Label x:Name="lblWednesday" HorizontalAlignment="Left" Height="20" Margin="335,35,0,0" VerticalAlignment="Top" Width="75" Content="Wednesday"/>
+                    <sdk:Label x:Name="lblThursday" HorizontalAlignment="Left" Height="20" Margin="478,35,0,0" VerticalAlignment="Top" Width="55" Content="Thursday"/>
+                    <sdk:Label x:Name="lblFriday" HorizontalAlignment="Left" Height="20" Margin="620,35,0,0" VerticalAlignment="Top" Width="37" Content="Friday" RenderTransformOrigin="4.421,0.487"/>
+                    <Grid HorizontalAlignment="Left" Height="583" Margin="0,23,0,-349" VerticalAlignment="Top" Width="48">
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,30,0,0" VerticalAlignment="Top" Width="35" Content="7:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,50,0,0" VerticalAlignment="Top" Width="35" Content="8:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,70,0,0" VerticalAlignment="Top" Width="35" Content="8:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,90,0,0" VerticalAlignment="Top" Width="35" Content="9:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,110,0,0" VerticalAlignment="Top" Width="35" Content="9:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,130,0,0" VerticalAlignment="Top" Width="35" Content="10:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,150,0,0" VerticalAlignment="Top" Width="35" Content="10:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,170,0,0" VerticalAlignment="Top" Width="35" Content="11:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,190,0,0" VerticalAlignment="Top" Width="35" Content="11:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,210,0,0" VerticalAlignment="Top" Width="35" Content="12:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,230,0,0" VerticalAlignment="Top" Width="35" Content="12:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,250,0,0" VerticalAlignment="Top" Width="35" Content="1:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,270,0,0" VerticalAlignment="Top" Width="35" Content="1:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,290,0,0" VerticalAlignment="Top" Width="35" Content="2:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,310,0,0" VerticalAlignment="Top" Width="35" Content="2:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,330,0,0" VerticalAlignment="Top" Width="35" Content="3:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,350,0,0" VerticalAlignment="Top" Width="35" Content="3:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,370,0,0" VerticalAlignment="Top" Width="35" Content="4:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,390,0,0" VerticalAlignment="Top" Width="35" Content="4:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,410,0,0" VerticalAlignment="Top" Width="35" Content="5:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,430,0,0" VerticalAlignment="Top" Width="35" Content="5:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,450,0,0" VerticalAlignment="Top" Width="35" Content="6:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,470,0,0" VerticalAlignment="Top" Width="35" Content="6:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,490,0,0" VerticalAlignment="Top" Width="35" Content="7:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,510,0,0" VerticalAlignment="Top" Width="35" Content="7:30"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,530,0,0" VerticalAlignment="Top" Width="35" Content="8:00"/>
+                        <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,550,0,0" VerticalAlignment="Top" Width="35" Content="8:30"/>
+
+                    </Grid>
+                </Grid>
+            </sdk:TabItem>
+        </sdk:TabControl>
+
+    </Grid>
+</UserControl>
