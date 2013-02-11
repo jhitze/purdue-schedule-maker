@@ -1,2 +1,4 @@
-Bin
-/ScheduleMaker/obj
+/ScheduleMaker/obj/
+/ScheduleMaker/ScheduleMaker.csproj.user
+/ScheduleMaker/ScheduleMaker.csproj
+/ScheduleMaker/Bin/
