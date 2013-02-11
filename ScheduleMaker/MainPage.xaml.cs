@@ -15,6 +15,9 @@ using System.Windows.Controls.Primitives;
 using System.ComponentModel;
 using System.Threading;
 
+//For debug
+using System.Diagnostics;
+
 namespace ScheduleMaker
 {
     public partial class MainPage : UserControl
@@ -24,6 +27,7 @@ namespace ScheduleMaker
         List<Course> possibleSections;          //A list of sections that are about to be added to the scheduling
         int totalClassCount = 0;                //The total number of classes
         List<List<Course>> confirmedSections;   //A list of lists of courses grouped by schedule grid
+        int tabCount = 0;                       //A number used to label the tabs.
 
         /* Constructor.
          * 
@@ -201,7 +205,6 @@ namespace ScheduleMaker
          * 
          * Displays the correct class information and enables a button.
          */
-
         private void classList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             //First, make sure items are being added. We don't care if they're being removed.
@@ -287,6 +290,7 @@ namespace ScheduleMaker
          * 
          * @return A boolean value. True if the question number is between the other two. False otherwise.
          */
+
         private bool isBetween(int start, int question, int end)
         {
             if (question >= start && question <= end)
@@ -420,6 +424,7 @@ namespace ScheduleMaker
             //Because the math for the percent step/jump isn't 100% accurate, when we are done checking combinations
             // we should "cheat" and set the progress bar to 100.
             this.Dispatcher.BeginInvoke(delegate { progress.Value = 100; });
+            (sender as BackgroundWorker).ReportProgress(100, null);
         }
 
         /* Evaluates bitstrings as section combinations.
@@ -462,7 +467,7 @@ namespace ScheduleMaker
         {
             //First check that all classes are represented.
             int classCount = totalClassCount;
-            Dictionary<string, List<Course>> classesDict = new Dictionary<string, List<Course>>();  //"class", List(Courses)
+            Dictionary<string, List<Course>> classesDict = new Dictionary<string, List<Course>>();  //"class", List of sections
             foreach (Course current in possibilities)
             {
                 string parent = current.parentClass;
@@ -486,7 +491,50 @@ namespace ScheduleMaker
                 //If the number of keys are not equal to the number of classes
                 return false;
             }
-            else return true;
+            else
+            {
+                //Now let's rule out if there are two sections with the same linkID.
+                foreach (string key in classesDict.Keys)
+                {
+                    List<Course> classSections = new List<Course>();
+                    List<string> links = new List<string>();
+                    List<string> linksTo = new List<string>();
+                    classesDict.TryGetValue(key, out classSections);
+                    foreach (Course linkTestCourse in classSections)
+                    {
+                        if (!links.Contains(linkTestCourse.linkID))
+                        {
+                            //If our link doesn't exist in the list yet, add it.
+                            links.Add(linkTestCourse.linkID);
+                        }
+                        //If it's already in the list, the combination is not allowed.
+                        else return false;
+
+                        //Check that each class is linked uniquely. IE: A1 and A2 link to A3. Only A1 OR A2 are allowed.
+                        if (linkTestCourse.linked)
+                        {
+                            if (!linksTo.Contains(linkTestCourse.linkedToID))
+                            {
+                                linksTo.Add(linkTestCourse.linkedToID);
+                            }
+                            else return false;
+                        }
+                    }
+                    //Also, we know that there are courses with the same linkID, let's make sure their link exists.
+                    foreach (Course linkedToTestCourse in classSections)
+                    {
+                        //If the course isn't linked, then there is no point in looking to make sure it's not linked to something
+                        if (!linkedToTestCourse.linked) continue;
+                        //If the linkID this course is linked to isn't present in the list, then this combination sucks.
+                        if (!links.Contains(linkedToTestCourse.linkedToID))
+                        {
+                            return false;
+                        }
+                    }
+                }
+                //If we never return in those loops, then it's still valid.
+                return true;
+            }
         }
 
         /* Called when the bitstring worker reports progress.
@@ -499,54 +547,18 @@ namespace ScheduleMaker
             {
                 foreach (List<Course> classGroup in confirmedSections)
                 {
-                    txtFinalInfo.Text += "Found\n";
                     reportingList.Add(classGroup);
                 }
+                //Clear the list since we used them all.
                 confirmedSections = new List<List<Course>>();
             }
+            if ( reportingList.Count < 1 ) return;  //If there are no elements, draw nothing.
             foreach (List<Course> classGroup in reportingList)
             {
-                
-            }
-        }
-
-        /* Called when the submit button is clicked. Initiliazes some data and starts the schedule
-         *  generation process.
-         * 
-         */
-        private void btnSubmit_Click(object sender, RoutedEventArgs e)
-        {
-            int count = 0;
-            List<Class> listCombinations = new List<Class>();
-            possibleSections = new List<Course>();               //All of the possible courses
-            progress.Value = 0;                                 //Reset the progress bar
-            //Start finding bitstrings in the background
-            BackgroundWorker bitstringworker = new BackgroundWorker();
-            bitstringworker.WorkerSupportsCancellation = false;
-            bitstringworker.WorkerReportsProgress = true;
-            bitstringworker.DoWork += new DoWorkEventHandler(generateAllBitStrings);
-            bitstringworker.ProgressChanged += new ProgressChangedEventHandler(reportProgress);
-            int totalClasses = 0;
-            //Count how many courses there are so we know how many bitstrings to generate
-            foreach (Class finalClass in lstFinalClasses.Items)
-            {
-                foreach (Course course in finalClass.sections)
-                {
-                    //if course is not in exlusions:
-                    possibleSections.Add(course);
-                }
-                totalClasses += finalClass.sections.Count;
-            }
-            //Start generating bitstrings
-            bitstringworker.RunWorkerAsync("" + totalClasses);
-            totalClassCount = totalClasses;
-            txtFinalInfo.Text = "";
-            return; //Don't go any farther while I'm debugging.
-            foreach (Class finalClass in lstFinalClasses.Items)
-            {
-                count++;
+                //Make a grid and tab
+                tabCount++;
                 TabItem tab = new TabItem();
-                tab.Header = ""+count;
+                tab.Header = ""+tabCount;          //The tab name
                 Grid grid = new Grid();
                 //Draw horizontal lines
                 for (int i = 0; i < 80; i++)
@@ -561,6 +573,7 @@ namespace ScheduleMaker
                     gridLines.StrokeThickness = 0.5f;
                     grid.Children.Add(gridLines);
                 }
+                //Draw vertical lines
                 for (int i = 0; i < 6; i++)
                 {
                     Line gridLines = new Line();
@@ -573,18 +586,50 @@ namespace ScheduleMaker
                     grid.Children.Add(gridLines);
                 }
 
-
-                if (finalClass.sections.Count > 0)
+                //Draw each course on the grid
+                foreach (Course course in classGroup)
                 {
-                    foreach (Course course in finalClass.sections)
-                    {
-                        drawSchedule(grid, course.startTime, course.endTime, course.days);
-                    }
+                    drawSchedule(grid, course.startTime, course.endTime, course.days);
                 }
 
                 tab.Content = grid;
                 tabBase.Items.Add(tab);
             }
+        }
+
+        /* Called when the submit button is clicked. Initiliazes some data and starts the schedule
+         *  generation process.
+         */
+        private void btnSubmit_Click(object sender, RoutedEventArgs e)
+        {
+            //Clear all of the generated tabs
+            tabBase.SelectedIndex = 0;
+            for (int tabIter = (tabBase.Items.Count-1); tabIter > 1; tabIter--)
+            {
+                tabBase.Items.RemoveAt(tabIter);
+            }
+            totalClassCount = lstFinalClasses.Items.Count;
+            possibleSections = new List<Course>();               //All of the possible courses
+            progress.Value = 0;                                 //Reset the progress bar
+            //Start finding bitstrings in the background
+            BackgroundWorker bitstringworker = new BackgroundWorker();
+            bitstringworker.WorkerSupportsCancellation = false;
+            bitstringworker.WorkerReportsProgress = true;
+            bitstringworker.DoWork += new DoWorkEventHandler(generateAllBitStrings);
+            bitstringworker.ProgressChanged += new ProgressChangedEventHandler(reportProgress);
+            int totalCourses = 0;
+            //Count how many courses there are so we know how many bitstrings to generate
+            foreach (Class finalClass in lstFinalClasses.Items)
+            {
+                foreach (Course course in finalClass.sections)
+                {
+                    //TODO: if course is not in exlusions:
+                    possibleSections.Add(course);
+                }
+                totalCourses += finalClass.sections.Count;
+            }
+            //Start generating bitstrings
+            bitstringworker.RunWorkerAsync("" + totalCourses);
         }
 
         /* Draws a section's meeting times on the specified grid.
@@ -597,8 +642,8 @@ namespace ScheduleMaker
         private void drawSchedule(Grid grid, string startTime, string endTime, string days)
         {
             //Change "11:30 am" to "11:30"
-            startTime.Replace(" ", "");
-            endTime.Replace(" ", "");
+            startTime = startTime.Replace(" ", "");
+            endTime = endTime.Replace(" ", "");
             //Begin parsing the time string for what we need. "11", "30", "am"
             string startMeridian = startTime.Substring(startTime.Length - 2, 2);
             string endMeridian = endTime.Substring(endTime.Length - 2, 2);
@@ -615,22 +660,20 @@ namespace ScheduleMaker
             // Then, every 10 minutes is another position, so each hour is 6 positions.
             int positionStart = 3;
             //Make our clock a 24 hour system
-            if (startMeridian == "pm") hourStart += 12;
+            if (startMeridian == "pm" && hourStart != 12) hourStart += 12;
             //The hour of the first class is at 7 -- so 
             hourStart -= 7;
             positionStart += 6 * (hourStart-1);
-            txtFinalInfo.Text += hourStart+"\n";
 
             positionStart += (int)((Math.Floor((Convert.ToDouble(splitStartTime[1]))))/10.0);
 
             //Position calculation for the end time. Same as above.
             int positionEnd = 3;
             //Make our clock a 24 hour system
-            if (endMeridian == "pm") hourEnd += 12;
+            if (endMeridian == "pm" && hourEnd != 12) hourEnd += 12;
             //The hour of the first class is at 7
             hourEnd -= 7;
             positionEnd += 6 * (hourEnd-1);
-            txtFinalInfo.Text += hourEnd + "\n";
 
             positionEnd += (int)((Math.Floor((Convert.ToDouble(splitEndTime[1])))) / 10.0);
 
@@ -642,7 +685,7 @@ namespace ScheduleMaker
                 canvas.Children.Add(block);
                 block.Fill = new SolidColorBrush(Colors.Blue);
                 block.Stroke = new SolidColorBrush(Colors.Black);
-                block.StrokeThickness = 2.0d;
+                block.StrokeThickness = 1.3d;
                 block.RadiusX = block.RadiusY = 5.0d;               //Rounds the block corner.
                 block.Width = ((tabBase.ActualWidth / 6) + .80f);
                 block.Height = (positionEnd - positionStart) * 6.7; //Each position is 6.7 points tall.
@@ -701,7 +744,6 @@ namespace ScheduleMaker
          * 
          * We just update the visibility.
          */
-
         private void chkExclude_Checked(object sender, RoutedEventArgs e)
         {
             lstExclude.Visibility = System.Windows.Visibility.Visible;
@@ -714,7 +756,6 @@ namespace ScheduleMaker
          * 
          * We just update the visibility.
          */
-
         private void chkExclude_Unchecked(object sender, RoutedEventArgs e)
         {
             //Not visible
