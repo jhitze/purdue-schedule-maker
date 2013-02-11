@@ -28,6 +28,7 @@ namespace ScheduleMaker
         int totalClassCount = 0;                //The total number of classes
         List<List<Course>> confirmedSections;   //A list of lists of courses grouped by schedule grid
         int tabCount = 0;                       //A number used to label the tabs.
+        int tbaCount = 0;                       //The number of classes that have times of TBA. We need a count to track position.
 
         /* Constructor.
          * 
@@ -404,7 +405,7 @@ namespace ScheduleMaker
                 results.Add(bitstring);
                 //After a certain amount of rows, we need to pass the data into a new thread that will evaluate
                 //if our bitstring candidates are valid combinations of courses.
-                if (row % 10000 == 0)
+                if (row % 10000 == 0 || row == nsquared)
                 {
                     //Make a new BackgroundWorker that will test our combinations
                     BackgroundWorker checkstringsWorker = new BackgroundWorker();
@@ -587,6 +588,7 @@ namespace ScheduleMaker
                 }
 
                 //Draw each course on the grid
+                tbaCount = 0;
                 foreach (Course course in classGroup)
                 {
                     drawSchedule(grid, course.startTime, course.endTime, course.days);
@@ -595,6 +597,7 @@ namespace ScheduleMaker
                 tab.Content = grid;
                 tabBase.Items.Add(tab);
             }
+            if (e.ProgressPercentage == 100) btnSubmit.IsEnabled = true;    //Reenable the submit button now that we're done.
         }
 
         /* Called when the submit button is clicked. Initiliazes some data and starts the schedule
@@ -617,8 +620,8 @@ namespace ScheduleMaker
             bitstringworker.WorkerReportsProgress = true;
             bitstringworker.DoWork += new DoWorkEventHandler(generateAllBitStrings);
             bitstringworker.ProgressChanged += new ProgressChangedEventHandler(reportProgress);
-            int totalCourses = 0;
             //Count how many courses there are so we know how many bitstrings to generate
+            int totalCourses = 0;
             foreach (Class finalClass in lstFinalClasses.Items)
             {
                 foreach (Course course in finalClass.sections)
@@ -628,8 +631,10 @@ namespace ScheduleMaker
                 }
                 totalCourses += finalClass.sections.Count;
             }
-            //Start generating bitstrings
+            //Start generating bitstrings in background
             bitstringworker.RunWorkerAsync("" + totalCourses);
+            //Disable the submit button while we're generating. 
+            btnSubmit.IsEnabled = false;
         }
 
         /* Draws a section's meeting times on the specified grid.
@@ -641,20 +646,71 @@ namespace ScheduleMaker
          */
         private void drawSchedule(Grid grid, string startTime, string endTime, string days)
         {
-            //Change "11:30 am" to "11:30"
-            startTime = startTime.Replace(" ", "");
-            endTime = endTime.Replace(" ", "");
-            //Begin parsing the time string for what we need. "11", "30", "am"
-            string startMeridian = startTime.Substring(startTime.Length - 2, 2);
-            string endMeridian = endTime.Substring(endTime.Length - 2, 2);
-            startTime = startTime.Substring(0, startTime.Length - 2);
-            endTime = endTime.Substring(0, endTime.Length - 2);
-            //Get the first part to determine where to start
-            string[] splitStartTime = startTime.Split(':');
-            string[] splitEndTime = endTime.Split(':');
-            int hourStart = Convert.ToInt32(splitStartTime[0]);
-            int hourEnd = Convert.ToInt32(splitEndTime[0]);
+            //If the time is TBA, it needs to be drawn at the bottom.
+            bool tba = false;
+            if (startTime.ToLower().Equals("tba"))
+            {
+                tba = true;
+            }
+            string startMeridian, endMeridian;
+            int hourStart, hourEnd;
+            string[] splitStartTime, splitEndTime;
+            if (!tba)
+            {
+                //Change "11:30 am" to "11:30"
+                startTime = startTime.Replace(" ", "");
+                endTime = endTime.Replace(" ", "");
+                //Begin parsing the time string for what we need. "11", "30", "am"
+                startMeridian = startTime.Substring(startTime.Length - 2, 2);
+                endMeridian = endTime.Substring(endTime.Length - 2, 2);
+                startTime = startTime.Substring(0, startTime.Length - 2);
+                endTime = endTime.Substring(0, endTime.Length - 2);
+                //Get the first part to determine where to start
+                splitStartTime = startTime.Split(':');
+                splitEndTime = endTime.Split(':');
+                hourStart = Convert.ToInt32(splitStartTime[0]);
+                hourEnd = Convert.ToInt32(splitEndTime[0]);
+                days = days.ToLower();
+            }
+            else
+            {
+                startMeridian = "pm";
+                endMeridian = "pm";
+                hourStart = 9 + (tbaCount % 2);
+                hourEnd = 10 + (tbaCount % 2);
+                splitStartTime = "0:30".Split(':');
+                splitEndTime = "0:0".Split(':');
 
+                //We can't have too many TBA courses on one day or it would draw off screen.
+                switch (tbaCount)
+                {
+                    case 0:
+                    case 1:
+                        days = "m";
+                        break;
+                    case 2:
+                    case 3:
+                        days = "t";
+                        break;
+                    case 4:
+                    case 5:
+                        days = "w";
+                        break;
+                    case 6:
+                    case 7:
+                        days = "r";
+                        break;
+                    case 8:
+                    case 9:
+                        days = "f";
+                        break;
+                    default:
+                        //This should be impossible. 8 distance learning classes?  As if.
+                        days = "f";
+                        break;
+                }
+                tbaCount++;
+            }
             //Do position calculation for the start time.
             // Our system starts at 7:00 am, but the grid starts at 7:30. So we start the position at 3.
             // Then, every 10 minutes is another position, so each hour is 6 positions.
@@ -663,9 +719,9 @@ namespace ScheduleMaker
             if (startMeridian == "pm" && hourStart != 12) hourStart += 12;
             //The hour of the first class is at 7 -- so 
             hourStart -= 7;
-            positionStart += 6 * (hourStart-1);
+            positionStart += 6 * (hourStart - 1);
 
-            positionStart += (int)((Math.Floor((Convert.ToDouble(splitStartTime[1]))))/10.0);
+            positionStart += (int)((Math.Floor((Convert.ToDouble(splitStartTime[1])))) / 10.0);
 
             //Position calculation for the end time. Same as above.
             int positionEnd = 3;
@@ -673,11 +729,10 @@ namespace ScheduleMaker
             if (endMeridian == "pm" && hourEnd != 12) hourEnd += 12;
             //The hour of the first class is at 7
             hourEnd -= 7;
-            positionEnd += 6 * (hourEnd-1);
+            positionEnd += 6 * (hourEnd - 1);
 
             positionEnd += (int)((Math.Floor((Convert.ToDouble(splitEndTime[1])))) / 10.0);
 
-            days = days.ToLower();
             Canvas canvas = new Canvas();
             foreach (char character in days)
             {

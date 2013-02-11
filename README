@@ -3,3 +3,4 @@ This is my first big project that I started on my own.
 This Silverlight applications generates all valid combinations of classes and displays them for a user to choose from.
 
 This application requires a properly formatted XML file of the classes available, and a valid (but perhaps not current) one is included.
+There is a Visual Studio 2012 solution included.
