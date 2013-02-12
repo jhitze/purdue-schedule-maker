@@ -17,6 +17,7 @@ using System.Threading;
 
 //For debug
 using System.Diagnostics;
+using System.Text;
 
 namespace ScheduleMaker
 {
@@ -29,6 +30,8 @@ namespace ScheduleMaker
         List<List<Course>> confirmedSections;   //A list of lists of courses grouped by schedule grid
         int tabCount = 0;                       //A number used to label the tabs.
         int tbaCount = 0;                       //The number of classes that have times of TBA. We need a count to track position.
+        int secondsRemaining = 0;               //Seconds remaining until bitstrings are done.
+        BackgroundWorker counterDown;           //The background worker that updates the timeleft label.
 
         /* Constructor.
          * 
@@ -234,7 +237,6 @@ namespace ScheduleMaker
             classInfoBox.Text = "";                 //Make sure the information is clear, because we are deselecting
             btnSubmit.IsEnabled = true;             //Now that the final list is populated with at least one value,
                                                     // we can allow the submit button to be pushed.
-            
             //If the list is empty, disable the button
             if (classList.SelectedItems.Count < 1) btnAddToList.IsEnabled = false;
         }
@@ -313,11 +315,11 @@ namespace ScheduleMaker
          */
         private bool doTimesIntersect(String time1, String time2)
         {
-            String startTime, endTime = "";
-            startTime = time1.Split(" - ".ToCharArray(), StringSplitOptions.None)[0];
-            endTime = time1.Split(" - ".ToCharArray(), StringSplitOptions.None)[1];
-            startTime.Replace(" ", "");
-            endTime.Replace(" ", "");
+            String startTime, endTime;
+            startTime = time1.Split("-".ToCharArray(), StringSplitOptions.None)[0];
+            endTime = time1.Split("-".ToCharArray(), StringSplitOptions.None)[1];
+            startTime = startTime.Replace(" ", "");
+            endTime = endTime.Replace(" ", "");
             string startMeridian = startTime.Substring(startTime.Length - 2, 2);
             string endMeridian = endTime.Substring(endTime.Length - 2, 2);
             startTime = startTime.Substring(0, startTime.Length - 2);
@@ -329,15 +331,16 @@ namespace ScheduleMaker
             int hourEnd = Convert.ToInt32(splitEndTime[0]);
             int minutesStart = Convert.ToInt32(splitStartTime[1]);
             int minutesEnd = Convert.ToInt32(splitEndTime[1]);
+            //if (startMeridian == "pm" && hourStart != 12) hourStart += 12;
             if (endMeridian == "pm") hourEnd += 12;
             int startValue = (hourStart * 3) + (minutesStart / 10);
             int endValue = (hourEnd * 3) + (minutesEnd / 10);
 
             String startTime2, endTime2 = "";
-            startTime2 = time2.Split(" - ".ToCharArray(), StringSplitOptions.None)[0];
-            endTime2 = time2.Split(" - ".ToCharArray(), StringSplitOptions.None)[1];
-            startTime2.Replace(" ", "");
-            endTime2.Replace(" ", "");
+            startTime2 = time2.Split("-".ToCharArray(), StringSplitOptions.None)[0];
+            endTime2 = time2.Split("-".ToCharArray(), StringSplitOptions.None)[1];
+            startTime2 = startTime2.Replace(" ", "");
+            endTime2 = endTime2.Replace(" ", "");
             string startMeridian2 = startTime2.Substring(startTime2.Length - 2, 2);
             string endMeridian2 = endTime2.Substring(endTime2.Length - 2, 2);
             startTime2 = startTime2.Substring(0, startTime2.Length - 2);
@@ -349,6 +352,7 @@ namespace ScheduleMaker
             int hourEnd2 = Convert.ToInt32(splitEndTime2[0]);
             int minutesStart2 = Convert.ToInt32(splitStartTime2[1]);
             int minutesEnd2 = Convert.ToInt32(splitEndTime2[1]);
+            //if (startMeridian2 == "pm" && hourStart2 != 12) hourStart2 += 12;
             if (endMeridian2 == "pm") hourEnd2 += 12;
             int startValue2 = (hourStart2 * 3) + (minutesStart2 / 10);
             int endValue2 = (hourEnd2 * 3) + (minutesEnd2 / 10);
@@ -385,9 +389,18 @@ namespace ScheduleMaker
             int percentJump = nsquared / percentStep;
             if (percentJump == 0) percentJump = 1;
             else percentJump = 100 / percentJump;
+            //Start timekeeping
+            MyStopwatch timer = new MyStopwatch();
+            int rowInterval = 0;
+            int multiplier = 2;
             //Begin bitstring generation
             for (int row = 1; row <= nsquared; row++)
             {
+                rowInterval++;
+                if (rowInterval == 1)
+                {
+                    timer.start();
+                }
                 string bitstring = "";
                 for (int column = 1; column <= n; column++)
                 {
@@ -403,6 +416,13 @@ namespace ScheduleMaker
                     bitstring += (row <= cutoffs[column]) ? "1" : "0";
                 }
                 results.Add(bitstring);
+                if (rowInterval == Math.Pow(2, multiplier))
+                {
+                    double averageTime = (double)timer.stop() / Math.Pow(2, multiplier);
+                    secondsRemaining = (int)((averageTime * (nsquared - row)) / 1000.0) + 1;
+                    rowInterval = 0;
+                    multiplier++;
+                }
                 //After a certain amount of rows, we need to pass the data into a new thread that will evaluate
                 //if our bitstring candidates are valid combinations of courses.
                 if (row % 10000 == 0 || row == nsquared)
@@ -421,11 +441,20 @@ namespace ScheduleMaker
                     this.Dispatcher.BeginInvoke(delegate { progress.Value += percentJump; });
                     (sender as BackgroundWorker).ReportProgress(0, null);
                 }
+                if ((nsquared < 5000) && row % 4 == 0)
+                {
+                    Thread.Sleep(1);
+                }
             }
             //Because the math for the percent step/jump isn't 100% accurate, when we are done checking combinations
             // we should "cheat" and set the progress bar to 100.
             this.Dispatcher.BeginInvoke(delegate { progress.Value = 100; });
             (sender as BackgroundWorker).ReportProgress(100, null);
+            //Cancel the time reporting functions
+            counterDown.CancelAsync();
+            secondsRemaining = 0;
+            this.Dispatcher.BeginInvoke(updateTimeLabel);
+            timer.stop();
         }
 
         /* Evaluates bitstrings as section combinations.
@@ -533,6 +562,49 @@ namespace ScheduleMaker
                         }
                     }
                 }
+                //Check for intersections
+                //Put each day's meetings into a dictionary organized by day.
+                Dictionary<char, List<Course>> dayMeetingsDict = new Dictionary<char, List<Course>>();
+                foreach (Course timeIntersection in possibilities)
+                {
+                    if (timeIntersection.days.ToLower().Equals("tba")
+                        || timeIntersection.days.ToLower().Equals(" ")) continue; //We don't care about TBA courses
+                    foreach (char day in timeIntersection.days)
+                    {
+                        //If the day isn't in the dictionary already, add it
+                        if (!dayMeetingsDict.Keys.Contains(day))
+                        {
+                            List<Course> tempList = new List<Course>();
+                            tempList.Add(timeIntersection);
+                            dayMeetingsDict.Add(day, tempList);
+                        }
+                        else
+                        {
+                            List<Course> currentList = new List<Course>();
+                            dayMeetingsDict.TryGetValue(day, out currentList);
+                            currentList.Add(timeIntersection);
+                        }
+                    }
+                }
+                //Now iterate through the dictionary day by day and check for intersections within.
+                foreach (var kv in dayMeetingsDict)
+                {
+                    List<Course> meetingsThisDay = kv.Value;
+                    if (meetingsThisDay.Count == 1) continue; //If there's only 1 meeting that day, no need to check.
+                    foreach (Course course in meetingsThisDay)
+                    {
+                        foreach (Course course2 in meetingsThisDay)
+                        {
+                            if (course2 == course) continue;
+                            string course1Time = course.startTime + " - " + course.endTime;
+                            string course2Time = course2.startTime + " - " + course2.endTime;
+                            if (doTimesIntersect(course1Time, course2Time))
+                            {
+                                return false;
+                            }
+                        }
+                    }
+                }
                 //If we never return in those loops, then it's still valid.
                 return true;
             }
@@ -543,6 +615,11 @@ namespace ScheduleMaker
          */
         private void reportProgress(object sender, ProgressChangedEventArgs e)
         {
+            if (e.ProgressPercentage == 100)
+            {
+                btnSubmit.IsEnabled = true;    //Reenable the submit button now that we're (mostly) done.
+                Thread.Sleep(500);             //Give the checking worker some time to finish.
+            }
             List<List<Course>> reportingList = new List<List<Course>>();
             lock (confirmedSections)
             {
@@ -591,13 +668,12 @@ namespace ScheduleMaker
                 tbaCount = 0;
                 foreach (Course course in classGroup)
                 {
-                    drawSchedule(grid, course.startTime, course.endTime, course.days);
+                    drawSchedule(grid, course.startTime, course.endTime, course.days, course.parentClass + "\n" + course.type);
                 }
 
                 tab.Content = grid;
                 tabBase.Items.Add(tab);
-            }
-            if (e.ProgressPercentage == 100) btnSubmit.IsEnabled = true;    //Reenable the submit button now that we're done.
+            } 
         }
 
         /* Called when the submit button is clicked. Initiliazes some data and starts the schedule
@@ -612,8 +688,10 @@ namespace ScheduleMaker
                 tabBase.Items.RemoveAt(tabIter);
             }
             totalClassCount = lstFinalClasses.Items.Count;
-            possibleSections = new List<Course>();               //All of the possible courses
+            possibleSections = new List<Course>();              //All of the possible courses
             progress.Value = 0;                                 //Reset the progress bar
+            tabCount = 0;                                       //Reset the tab numberings.
+            secondsRemaining = 0;                               //Reset timeleft
             //Start finding bitstrings in the background
             BackgroundWorker bitstringworker = new BackgroundWorker();
             bitstringworker.WorkerSupportsCancellation = false;
@@ -631,10 +709,45 @@ namespace ScheduleMaker
                 }
                 totalCourses += finalClass.sections.Count;
             }
+            //Start counting down.
+            counterDown = new BackgroundWorker();
+            counterDown.WorkerSupportsCancellation = true;
+            counterDown.WorkerReportsProgress = false;
+            counterDown.DoWork += new DoWorkEventHandler(decreaseTimeRemaining);
+            counterDown.RunWorkerAsync();
             //Start generating bitstrings in background
             bitstringworker.RunWorkerAsync("" + totalCourses);
             //Disable the submit button while we're generating. 
             btnSubmit.IsEnabled = false;
+        }
+
+        /* Called while the bitstring worker is running
+         *  Updates the estimated time left.
+         */
+        private void decreaseTimeRemaining(object sender, DoWorkEventArgs e)
+        {
+            if (counterDown.CancellationPending) return;
+            if (secondsRemaining == 0) Thread.Sleep(1000);
+            while (secondsRemaining > 0)
+            {
+                if (counterDown.CancellationPending) return;
+                secondsRemaining--;
+                this.Dispatcher.BeginInvoke(updateTimeLabel);
+                Thread.Sleep(1000);
+            }
+        }
+
+        /*
+         * Updates the estimated time remaining label
+         */
+        private void updateTimeLabel()
+        {
+            if (secondsRemaining == 1)
+            {
+                lblTimeRemaining.Content = "Estimated time remaining: " + secondsRemaining + " second";
+                return;
+            }
+            lblTimeRemaining.Content = "Estimated time remaining: " + secondsRemaining + " seconds";
         }
 
         /* Draws a section's meeting times on the specified grid.
@@ -644,7 +757,7 @@ namespace ScheduleMaker
          * @param endTime : The ending time of the section      (Form: "12:30 pm")
          * @param days : The days the section meets
          */
-        private void drawSchedule(Grid grid, string startTime, string endTime, string days)
+        private void drawSchedule(Grid grid, string startTime, string endTime, string days, string labelText = "")
         {
             //If the time is TBA, it needs to be drawn at the bottom.
             bool tba = false;
@@ -678,7 +791,7 @@ namespace ScheduleMaker
                 endMeridian = "pm";
                 hourStart = 9 + (tbaCount % 2);
                 hourEnd = 10 + (tbaCount % 2);
-                splitStartTime = "0:30".Split(':');
+                splitStartTime = "0:0".Split(':');
                 splitEndTime = "0:0".Split(':');
 
                 //We can't have too many TBA courses on one day or it would draw off screen.
@@ -738,33 +851,46 @@ namespace ScheduleMaker
             {
                 Rectangle block = new Rectangle();
                 canvas.Children.Add(block);
-                block.Fill = new SolidColorBrush(Colors.Blue);
+                block.Fill = new SolidColorBrush(Colors.Cyan);
                 block.Stroke = new SolidColorBrush(Colors.Black);
-                block.StrokeThickness = 1.3d;
+                block.StrokeThickness = 1.2d;
                 block.RadiusX = block.RadiusY = 5.0d;               //Rounds the block corner.
                 block.Width = ((tabBase.ActualWidth / 6) + .80f);
                 block.Height = (positionEnd - positionStart) * 6.7; //Each position is 6.7 points tall.
+                Label info = new Label();
+                info.Content = labelText;
+                canvas.Children.Add(info);
                 switch (character)
                 {
                     case 'm':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d);
+                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.LeftProperty, 45d);
                         break;
                     case 't':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d + ((tabBase.ActualWidth / 6) + .80f) * 1);
+                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.LeftProperty, 45d + ((tabBase.ActualWidth / 6) + .80f) * 1);
                         break;
                     case 'w':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d + ((tabBase.ActualWidth / 6) + .80f) * 2);
+                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.LeftProperty, 45d + ((tabBase.ActualWidth / 6) + .80f) * 2);
                         break;
                     case 'r':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d + ((tabBase.ActualWidth / 6) + .80f) * 3);
+                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.LeftProperty, 45d + ((tabBase.ActualWidth / 6) + .80f) * 3);
                         break;
                     case 'f':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d + ((tabBase.ActualWidth / 6) + .80f) * 4);
+                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.LeftProperty, 45d + ((tabBase.ActualWidth / 6) + .80f) * 4);
                         break;
                 }
             }
