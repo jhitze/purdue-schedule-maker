@@ -74,6 +74,7 @@
                         <sdk:Label HorizontalAlignment="Left" Height="20" Margin="1,550,0,0" VerticalAlignment="Top" Width="35" Content="8:30"/>
 
                     </Grid>
+                    <Button x:Name="btnRemoveTab" Content="Remove this schedule tab" HorizontalAlignment="Left" Margin="565,8,0,0" VerticalAlignment="Top" Width="167" Click="btnRemoveTab_Click_1"/>
                 </Grid>
             </sdk:TabItem>
         </sdk:TabControl>

@@ -968,5 +968,24 @@ namespace ScheduleMaker
             txtExclude.Text += "Instructor: " + course.instructor + "\n";
             txtExclude.Text += "\nAvailability: " + course.availability;
         }
+
+        /* Called when the tab removal button is clicked.
+         * 
+         * We're going to move the tab that's selected in a safe direction and then remove the tab.
+         */
+        private void btnRemoveTab_Click_1(object sender, RoutedEventArgs e)
+        {
+            int currentTabIndex = tabBase.SelectedIndex;
+            //Need to make sure that we don't accidently switch to our hidden template tab.
+            if ((currentTabIndex - 1) == 1)
+            {
+                tabBase.SelectedIndex = 0;
+            }
+            else
+            {
+                tabBase.SelectedIndex = (currentTabIndex - 1);
+            }
+            tabBase.Items.RemoveAt(currentTabIndex);
+        }
     }
 }
