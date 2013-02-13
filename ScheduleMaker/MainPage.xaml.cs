@@ -391,8 +391,8 @@ namespace ScheduleMaker
             else percentJump = 100 / percentJump;
             //Start timekeeping
             MyStopwatch timer = new MyStopwatch();
-            int rowInterval = 0;
-            int multiplier = 2;
+            int rowInterval = 0;        //Iterator for timer
+            int multiplier = 2;         //Increases the time between timeleft updates (exponential)
             //Begin bitstring generation
             for (int row = 1; row <= nsquared; row++)
             {
@@ -401,8 +401,8 @@ namespace ScheduleMaker
                 {
                     timer.start();
                 }
-                string bitstring = "";
-                //StringBuilder sbBitstring = new StringBuilder();
+                //Use StringBuilder because it's slightly faster
+                StringBuilder sbBitstring = new StringBuilder();
                 for (int column = 1; column <= n; column++)
                 {
                     int cutoff = nsquared / (int)Math.Pow(2, column);
@@ -414,11 +414,11 @@ namespace ScheduleMaker
                     {
                         cutoffs[column] = row+(cutoff-1);
                     }
-                    bitstring += (row <= cutoffs[column]) ? "1" : "0";
-                    //sbBitstring.Append((row <= cutoffs[column]) ? '1' : '0');
+                    sbBitstring.Append((row <= cutoffs[column]) ? '1' : '0');
                 }
-                //string bitstring = sbBitstring.ToString();
+                string bitstring = sbBitstring.ToString();
                 results.Add(bitstring);
+
                 if (rowInterval == Math.Pow(2, multiplier))
                 {
                     double averageTime = (double)timer.stop() / Math.Pow(2, multiplier);

@@ -34,7 +34,7 @@
                     <TextBox x:Name="txtExclude" HorizontalAlignment="Left" Height="155" Margin="458,472,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="250" IsReadOnly="True"/>
                     <sdk:Label x:Name="lblExcludeInfo" HorizontalAlignment="Left" Height="65" Margin="71,470,0,0" VerticalAlignment="Top" Width="227" Content="Only use this is you have a reason.&#xD;&#xA;Excluding a course that is required&#xD;&#xA;(IE: It is linked to another) could result&#xD;&#xA;in 0 schedule options being created."/>
                     <ProgressBar x:Name="progress" Margin="450,652,35,10"/>
-                    <sdk:Label x:Name="lblTimeRemaining" Height="28" Margin="27,646,467,10" Content="Estimated time remaining:"/>
+                    <sdk:Label x:Name="lblTimeRemaining" Height="28" Margin="27,646,467,10" Content=""/>
                 </Grid>
             </sdk:TabItem>
             <sdk:TabItem x:Name="tabLayout" Header="Text" Visibility="Collapsed">
