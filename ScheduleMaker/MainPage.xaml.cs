@@ -174,6 +174,8 @@ namespace ScheduleMaker
                                             course.startTime = "TBA";
                                             course.endTime = "TBA";
                                         }
+                                        course.excluded = false;
+
                                         classes[classesIndex].sections.Add(course);
                                     }
                                     break;
@@ -259,6 +261,15 @@ namespace ScheduleMaker
 
             Class classToDisplay = (Class)e.AddedItems[0];
             txtFinalInfo.Text = "";
+            int excludedSections = 0;
+            foreach (Course item in classToDisplay.sections)
+            {
+                if (item.excluded) excludedSections++;
+            }
+            if (excludedSections > 0)
+            {
+                txtFinalInfo.Text += "YOU HAVE EXCLUDED " + excludedSections + " SECTIONS FROM THIS CLASS!\n";
+            }
             txtFinalInfo.Text += classToDisplay.course + " - " + classToDisplay.name + '\n' + '\n';
             txtFinalInfo.Text += classToDisplay.description + "\n";
             txtFinalInfo.Text += classToDisplay.credits;
@@ -284,6 +295,8 @@ namespace ScheduleMaker
             lstFinalClasses.Items.Remove(classToRemove);
             txtFinalInfo.Text = "";
             btnRemoveFromList.IsEnabled = false;
+            lstExclude.Items.Clear();
+            txtExclude.Text = "";
         }
 
         /* Returns if a number is between (or equal to) two other numbers.
@@ -708,10 +721,13 @@ namespace ScheduleMaker
             {
                 foreach (Course course in finalClass.sections)
                 {
-                    //TODO: if course is not in exlusions:
-                    possibleSections.Add(course);
+                    //If course is not in exlusions
+                    if (!course.excluded)
+                    {
+                        possibleSections.Add(course);
+                        totalCourses++;
+                    }
                 }
-                totalCourses += finalClass.sections.Count;
             }
             //Start counting down.
             counterDown = new BackgroundWorker();
@@ -986,6 +1002,28 @@ namespace ScheduleMaker
                 tabBase.SelectedIndex = (currentTabIndex - 1);
             }
             tabBase.Items.RemoveAt(currentTabIndex);
+        }
+
+        /* Called when the exclude button is clicked.
+         * 
+         *  Removes or adds sections from consideration.
+         */
+        private void btnExclude_Click_1(object sender, RoutedEventArgs e)
+        {
+            Course exclusion = (Course)lstExclude.SelectedItem;
+            bool currentlyExcluded = exclusion.excluded;
+            if (currentlyExcluded)
+            {
+                exclusion.excluded = false;
+            }
+            else
+            {
+                exclusion.excluded = true;
+            }
+            //Update the text for the list
+            lstExclude.Items.Remove(exclusion);
+            lstExclude.Items.Add(exclusion);
+            lstExclude.SelectedItem = exclusion;
         }
     }
 }

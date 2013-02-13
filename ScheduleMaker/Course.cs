@@ -27,8 +27,14 @@ namespace ScheduleMaker
         public string linkID;
         public string linkedToID;
 
+        public bool excluded;
+
         public override string ToString()
         {
+            if (excluded)
+            {
+                return "EXCLUDED";
+            }
             return crn;
         }
     }
