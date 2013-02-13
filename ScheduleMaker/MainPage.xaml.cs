@@ -331,7 +331,7 @@ namespace ScheduleMaker
             int hourEnd = Convert.ToInt32(splitEndTime[0]);
             int minutesStart = Convert.ToInt32(splitStartTime[1]);
             int minutesEnd = Convert.ToInt32(splitEndTime[1]);
-            //if (startMeridian == "pm" && hourStart != 12) hourStart += 12;
+            if (startMeridian == "pm") hourStart += 12;
             if (endMeridian == "pm") hourEnd += 12;
             int startValue = (hourStart * 3) + (minutesStart / 10);
             int endValue = (hourEnd * 3) + (minutesEnd / 10);
@@ -352,7 +352,7 @@ namespace ScheduleMaker
             int hourEnd2 = Convert.ToInt32(splitEndTime2[0]);
             int minutesStart2 = Convert.ToInt32(splitStartTime2[1]);
             int minutesEnd2 = Convert.ToInt32(splitEndTime2[1]);
-            //if (startMeridian2 == "pm" && hourStart2 != 12) hourStart2 += 12;
+            if (startMeridian2 == "pm") hourStart2 += 12;
             if (endMeridian2 == "pm") hourEnd2 += 12;
             int startValue2 = (hourStart2 * 3) + (minutesStart2 / 10);
             int endValue2 = (hourEnd2 * 3) + (minutesEnd2 / 10);
@@ -402,6 +402,7 @@ namespace ScheduleMaker
                     timer.start();
                 }
                 string bitstring = "";
+                //StringBuilder sbBitstring = new StringBuilder();
                 for (int column = 1; column <= n; column++)
                 {
                     int cutoff = nsquared / (int)Math.Pow(2, column);
@@ -414,7 +415,9 @@ namespace ScheduleMaker
                         cutoffs[column] = row+(cutoff-1);
                     }
                     bitstring += (row <= cutoffs[column]) ? "1" : "0";
+                    //sbBitstring.Append((row <= cutoffs[column]) ? '1' : '0');
                 }
+                //string bitstring = sbBitstring.ToString();
                 results.Add(bitstring);
                 if (rowInterval == Math.Pow(2, multiplier))
                 {
@@ -605,6 +608,7 @@ namespace ScheduleMaker
                         }
                     }
                 }
+
                 //If we never return in those loops, then it's still valid.
                 return true;
             }
