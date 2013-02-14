@@ -37,7 +37,7 @@
                     <sdk:Label x:Name="lblTimeRemaining" Height="28" Margin="27,646,467,10" Content=""/>
                 </Grid>
             </sdk:TabItem>
-            <sdk:TabItem x:Name="tabLayout" Header="Text" Visibility="Collapsed">
+            <sdk:TabItem x:Name="tabLayout" Header="Text">
                 <Grid x:Name="grdSchedule" Margin="0,0,0,427">
                     <sdk:Label x:Name="lblMonday" HorizontalAlignment="Left" Height="20" VerticalAlignment="Top" Width="51" Content="Monday" Margin="80,35,0,0"/>
                     <sdk:Label x:Name="lblTuesday" HorizontalAlignment="Left" Margin="211,35,0,0" Width="53" Content="Tuesday" Height="20" VerticalAlignment="Top"/>
@@ -75,6 +75,7 @@
 
                     </Grid>
                     <Button x:Name="btnRemoveTab" Content="Remove this schedule tab" HorizontalAlignment="Left" Margin="565,8,0,0" VerticalAlignment="Top" Width="167" Click="btnRemoveTab_Click_1"/>
+                    <Button x:Name="btnChoose" Content="You want this schedule!" HorizontalAlignment="Left" Margin="406,8,0,0" VerticalAlignment="Top" Width="139" Click="btnChoose_Click"/>
                 </Grid>
             </sdk:TabItem>
         </sdk:TabControl>

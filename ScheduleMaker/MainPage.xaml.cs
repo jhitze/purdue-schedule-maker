@@ -32,6 +32,7 @@ namespace ScheduleMaker
         int tbaCount = 0;                       //The number of classes that have times of TBA. We need a count to track position.
         int secondsRemaining = 0;               //Seconds remaining until bitstrings are done.
         BackgroundWorker counterDown;           //The background worker that updates the timeleft label.
+        Dictionary<Grid, List<Course>> sectionsInGrid;      //The sections that are in each grid.
 
         /* Constructor.
          * 
@@ -316,6 +317,15 @@ namespace ScheduleMaker
             return false;
         }
 
+        private bool isBetween(double start, double question, double end)
+        {
+            if (question >= start && question <= end)
+            {
+                return true;
+            }
+            return false;
+        }
+
         /* Asks if two time ranges given as strings are intersecting.
          *  Time format: "11:30 am - 12:30 pm"
          * We do this by converting the times to a whole number system that can be used to represent different times.
@@ -391,23 +401,28 @@ namespace ScheduleMaker
          */
         private void generateAllBitStrings(object sender, DoWorkEventArgs e)
         {
-            int n = Convert.ToInt32(e.Argument as string);          //The length of the bitstrings
+            double n = Convert.ToDouble(e.Argument as string);          //The length of the bitstrings
             List<string> results = new List<string>();              //A collection of the bitstrings so far
-            int[] cutoffs = new int[n + 1];
-            Array.Clear(cutoffs, 0, n+1);                           //Initialize the array to 0s
-            int nsquared = (int) Math.Pow(2,n);                     //This is the target number of strings to generate
+            //double[] cutoffs = new double[n + 1];
+            Dictionary<double, double> cutoffs = new Dictionary<double, double>();              
+            for (double x = 1; x <= n; x++)                          //Init array to 0s
+            {
+                cutoffs.Add(x, 0.0);
+            }
+            //Array.Clear(cutoffs, 0, n+1);                           //Initialize the array to 0s
+            double nsquared = Math.Pow(2,n);                          //This is the target number of strings to generate
             //Stuff below here is for calculating how to update the progress bar
-            int percentStep = nsquared / 100;
+            double percentStep = nsquared / 100;
             if (percentStep == 0) percentStep = 1;
-            int percentJump = nsquared / percentStep;
+            double percentJump = nsquared / percentStep;
             if (percentJump == 0) percentJump = 1;
             else percentJump = 100 / percentJump;
             //Start timekeeping
             MyStopwatch timer = new MyStopwatch();
-            int rowInterval = 0;        //Iterator for timer
+            double rowInterval = 0;        //Iterator for timer
             int multiplier = 2;         //Increases the time between timeleft updates (exponential)
             //Begin bitstring generation
-            for (int row = 1; row <= nsquared; row++)
+            for (double row = 1; row <= nsquared; row++)
             {
                 rowInterval++;
                 if (rowInterval == 1)
@@ -416,9 +431,11 @@ namespace ScheduleMaker
                 }
                 //Use StringBuilder because it's slightly faster
                 StringBuilder sbBitstring = new StringBuilder();
-                for (int column = 1; column <= n; column++)
+                for (double column = 1; column <= n; column++)
                 {
-                    int cutoff = nsquared / (int)Math.Pow(2, column);
+                    //double cutOffColumn;
+                    //cutoffs.TryGetValue(column, out cutOffColumn);
+                    double cutoff = nsquared / (int)Math.Pow(2, column);
                     if (cutoffs[column] == 0)
                     {
                         cutoffs[column] = cutoff;
@@ -434,14 +451,14 @@ namespace ScheduleMaker
 
                 if (rowInterval == Math.Pow(2, multiplier))
                 {
-                    double averageTime = (double)timer.stop() / Math.Pow(2, multiplier);
+                    float averageTime = (float)timer.stop() / (float)Math.Pow(2, multiplier);
                     secondsRemaining = (int)((averageTime * (nsquared - row)) / 1000.0) + 1;
                     rowInterval = 0;
                     multiplier++;
                 }
                 //After a certain amount of rows, we need to pass the data into a new thread that will evaluate
                 //if our bitstring candidates are valid combinations of courses.
-                if (row % 10000 == 0 || row == nsquared)
+                if (isBetween(0.0, row % 10000, 0.99) || row == nsquared)
                 {
                     //Make a new BackgroundWorker that will test our combinations
                     BackgroundWorker checkstringsWorker = new BackgroundWorker();
@@ -451,13 +468,13 @@ namespace ScheduleMaker
                     checkstringsWorker.RunWorkerAsync(results);
                     results = new List<string>();
                 }
-                if (row % percentStep == 0)
+                if (isBetween(0.0, row % percentStep, 0.99))
                 {
                     //Update the progress bar and report a step, which should display combination on the GUI
                     this.Dispatcher.BeginInvoke(delegate { progress.Value += percentJump; });
                     (sender as BackgroundWorker).ReportProgress(0, null);
                 }
-                if ((nsquared < 5000) && row % 4 == 0)
+                if ((nsquared < 5000) && isBetween(0, row % 4, 0.99))
                 {
                     Thread.Sleep(1);
                 }
@@ -683,13 +700,16 @@ namespace ScheduleMaker
 
                 //Draw each course on the grid
                 tbaCount = 0;
+                List<Course> coursesInGroup = new List<Course>();
                 foreach (Course course in classGroup)
                 {
                     drawSchedule(grid, course.startTime, course.endTime, course.days, course.parentClass + "\n" + course.type);
+                    coursesInGroup.Add(course);
                 }
 
                 tab.Content = grid;
                 tabBase.Items.Add(tab);
+                sectionsInGrid.Add(grid, coursesInGroup);
             } 
         }
 
@@ -709,6 +729,7 @@ namespace ScheduleMaker
             progress.Value = 0;                                 //Reset the progress bar
             tabCount = 0;                                       //Reset the tab numberings.
             secondsRemaining = 0;                               //Reset timeleft
+            sectionsInGrid = new Dictionary<Grid, List<Course>>();  //Reset the grid dictionary
             //Start finding bitstrings in the background
             BackgroundWorker bitstringworker = new BackgroundWorker();
             bitstringworker.WorkerSupportsCancellation = false;
@@ -1024,6 +1045,41 @@ namespace ScheduleMaker
             lstExclude.Items.Remove(exclusion);
             lstExclude.Items.Add(exclusion);
             lstExclude.SelectedItem = exclusion;
+        }
+
+        private void btnChoose_Click(object sender, RoutedEventArgs e)
+        {
+            Popup popper = new Popup();
+            Grid parent = (Grid)(tabBase.SelectedItem);
+            List<Course> sections = new List<Course>();
+            Border border = new Border();
+            border.BorderBrush = new SolidColorBrush(Colors.Black);
+            border.BorderThickness = new Thickness(2.0);
+
+            StackPanel panel1 = new StackPanel();
+            panel1.Background = new SolidColorBrush(Colors.LightGray);
+
+            /*
+            Button button1 = new Button();
+            button1.Content = "Close";
+            button1.Margin = new Thickness(5.0);
+            button1.Click += new RoutedEventHandler(button1_Click);
+             * */
+            TextBlock textblock1 = new TextBlock();
+            textblock1.Text = "";
+            textblock1.Margin = new Thickness(5.0);
+            panel1.Children.Add(textblock1);
+            //panel1.Children.Add(button1);
+            border.Child = panel1;
+
+            // Set the Child property of Popup to the border 
+            // which contains a stackpanel, textblock and button.
+            popper.Child = border;
+
+            // Set where the popup will show up on the screen.
+            popper.VerticalOffset = 25;
+            popper.HorizontalOffset = 25;
+            popper.IsOpen = true;
         }
     }
 }
