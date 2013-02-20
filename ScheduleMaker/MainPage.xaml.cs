@@ -407,7 +407,7 @@ namespace ScheduleMaker
         private void generateAllBitStrings(object sender, DoWorkEventArgs e)
         {
             short n = Convert.ToInt16(e.Argument as string);          //The length of the bitstrings
-            List<bool[]> results = new List<bool[]>();              //A collection of the bitstrings so far
+
             /* Progress reporting */
             double nsquared = Math.Pow(2,n);                          //This is the target number of strings to generate
             //TODO cleanup
@@ -420,8 +420,8 @@ namespace ScheduleMaker
             //MyStopwatch timer = new MyStopwatch();
             
             double totalResults = 0.0;            //Total results for progress reporting
-            double rollingResultTally = 0;        //Iterator for timer
             int multiplier = 2;                   //Increases the time between timeleft updates (exponential)
+            double rollingTotal = 0.0;            //Total results generated that resets after timeleft update
 
             /* Begin generating bitstrings */
             bool[] first = new bool[n];       //First string is all false
@@ -433,40 +433,39 @@ namespace ScheduleMaker
             }
             bool[] intermediate = first;
 
-            results.Add(boolDuplicate(first));
+            checkBitstring(first);
             totalResults++;
 
             /* Generating loop */
+            MyStopwatch timer = new MyStopwatch();
             do
             {
+                if (rollingTotal == 0)
+                {
+                    timer.start();
+                }
+                //Make the next bitstring
                 intermediate = generateNextBitstring(intermediate);
-                results.Add(boolDuplicate(intermediate));
                 
                 //Increment counters
-                rollingResultTally++;
                 totalResults++;
+                rollingTotal++;
 
-                //Check for validity
-                if (rollingResultTally == 10.0 || totalResults == nsquared)
-                {
-                    //Check the bitstrings we've created and add valid sections to the list of one to be drawn
-                    checkBitstrings(results);
-                    results = new List<bool[]>();
-                    rollingResultTally = 0.0;
-                }
+                //Check the bitstring we generated
+                checkBitstring(intermediate);
 
                 //Update the time left in exponential time
-                if (totalResults == Math.Pow(2, multiplier))
+                if (rollingTotal == Math.Pow(2, multiplier))
                 {
-                    //float averageTime = (float)timer.stop() / (float)Math.Pow(2, multiplier);
-                    //secondsRemaining = (int)((averageTime * (nsquared - totalResults)) / 1000.0) + 1;
+                    float averageTime = (float)timer.stop() / (float)Math.Pow(2, multiplier);
+                    secondsRemaining = (int)((averageTime * (nsquared - totalResults)) / 1000.0) + 2;
                     multiplier++;
+                    rollingTotal = 0;
                 }
 
-                //Update the progress bar
+                //Update the progress bar and report progress to update the GUI with valid combinations
                 if (isBetween(0.0, totalResults % percentStep, 0.99))
                 {
-                    //Update the progress bar and report progress, which should display valid combinations on the GUI
                     this.Dispatcher.BeginInvoke(delegate { progress.Value += percentJump; });
                     (sender as BackgroundWorker).ReportProgress(0, null);
                 }
@@ -476,7 +475,9 @@ namespace ScheduleMaker
                 {
                     Thread.Sleep(5);
                 }
-            } while (boolCompare(intermediate, target) == false);
+            } while (totalResults < nsquared);
+            timer.stop();
+            Debug.WriteLine("Process took "+ (float)(timer.interval / 1000f) + " seconds.");
             /* After generating loop */
 
             //Because the math for the percent step/jump isn't 100% accurate, when we are done checking combinations
@@ -520,93 +521,29 @@ namespace ScheduleMaker
             return old;
         }
 
-        /* Copies values from one bool array to a new one.
-         * 
-         * @param array The bool array to copy from
-         * 
-         * @return The new bool array
-         */
-        private bool[] boolDuplicate(bool[] array)
-        {
-            bool[] newArray = new bool[array.Length];
-            for (short n = 0; n < array.Length; n++)
-            {
-                newArray[n] = array[n];
-            }
-            return newArray;
-        }
-        
-        /* Checks if two bool arrays are equal. IE: they have the same values in corresponding indices.
-         * 
-         * I'm not checking for length equality, so make sure the lengths of the arrays actually are equal
-         *  before calling this method.
-         *  
-         * @param array1 The first bool array to compare
-         * @param array2 The second bool array to compare
-         * 
-         * @return true if both arrays contain the same bools
-         */
-        private bool boolCompare(bool[] array1, bool[] array2)
-        {
-            for (short n = 0; n < array1.Length; n++)
-            {
-                if (array1[n] != array2[n]) return false;
-            }
-            return true;
-        }
-
         /* Evaluates bitstrings as section combinations.
          *  If a combination is a valid schedule, then we add it to a global list of confirmed classes.
          * 
-         * @param e.Argument Passed from the caller, it is the list of bitstrings that have been generated
+         * @param bitstring The bool array that represents a bitstring
          */
-        private void checkBitstrings(object sender, DoWorkEventArgs e)
+        private void checkBitstring(bool[] bitstring)
         {
-            foreach (bool[] bitstring in (e.Argument as List<bool[]>))
+            List<Course> possibility = new List<Course>();
+            int iterator = 0;
+            foreach (bool bit in bitstring)
             {
-                List<Course> possibility = new List<Course>();
-                int iterator = 0;
-                foreach (bool bit in bitstring)
+                if (bit == true)
                 {
-                    if (bit == true)
-                    {
-                        possibility.Add(possibleSections[iterator]);
-                    }
-                    iterator++;
+                    possibility.Add(possibleSections[iterator]);
                 }
-                //If the combination works, add it to the list of possibilities
-                if (combinationSuccessful(possibility))
-                {
-                    lock (confirmedSections)
-                    {
-                        confirmedSections.Add(possibility);
-                    }
-                }
+                iterator++;
             }
-        }
-
-        //TODO debug
-        private void checkBitstrings(List<bool[]> results)
-        {
-            foreach (bool[] bitstring in results)
+            //If the combination works, add it to the list of possibilities
+            if (combinationSuccessful(possibility))
             {
-                List<Course> possibility = new List<Course>();
-                int iterator = 0;
-                foreach (bool bit in bitstring)
+                lock (confirmedSections)
                 {
-                    if (bit == true)
-                    {
-                        possibility.Add(possibleSections[iterator]);
-                    }
-                    iterator++;
-                }
-                //If the combination works, add it to the list of possibilities
-                if (combinationSuccessful(possibility))
-                {
-                    lock (confirmedSections)
-                    {
-                        confirmedSections.Add(possibility);
-                    }
+                    confirmedSections.Add(possibility);
                 }
             }
         }
@@ -743,7 +680,7 @@ namespace ScheduleMaker
             if (e.ProgressPercentage == 100)
             {
                 btnSubmit.IsEnabled = true;    //Reenable the submit button now that we're (mostly) done.
-                Thread.Sleep(500);             //Give the checking worker some time to finish.
+                //Thread.Sleep(500);             //Give the checking worker some time to finish.
             }
             List<List<Course>> reportingList = new List<List<Course>>();
             lock (confirmedSections)
