@@ -34,6 +34,11 @@ namespace ScheduleMaker
         BackgroundWorker counterDown;           //The background worker that updates the timeleft label.
         Dictionary<Grid, List<Course>> sectionsInGrid;      //The sections that are in each grid.
 
+        MyStopwatch testTimer;
+        float averageTime = 0f;
+        float sumAverageTime = 0f;
+        byte testCounter = 0;
+
         /* Constructor.
          * 
          * Here we start all the GUI stuff.
@@ -391,9 +396,9 @@ namespace ScheduleMaker
             return false;
         }
 
-        /* Called in a background thread. Used to generate bitstrings of a specified length. EX: ("11001")
-         *  Actually runs pretty quickly, until you get to about length 23 and above. 2^23 strings of length 23
-         *  isn't a fast process.
+        /* Called in a background thread. Used to generate bitstrings of a specified length. These strings
+         *  are represented as an array of bools - true = 1, false = 0. This method is more efficient.
+         *  EX: ("11001")
          * 
          * We use these bitstrings to represent all possible combinations of the sections (even invalid ones).
          * 
@@ -401,93 +406,153 @@ namespace ScheduleMaker
          */
         private void generateAllBitStrings(object sender, DoWorkEventArgs e)
         {
-            double n = Convert.ToDouble(e.Argument as string);          //The length of the bitstrings
-            List<string> results = new List<string>();              //A collection of the bitstrings so far
-            //double[] cutoffs = new double[n + 1];
-            Dictionary<double, double> cutoffs = new Dictionary<double, double>();              
-            for (double x = 1; x <= n; x++)                          //Init array to 0s
-            {
-                cutoffs.Add(x, 0.0);
-            }
-            //Array.Clear(cutoffs, 0, n+1);                           //Initialize the array to 0s
+            short n = Convert.ToInt16(e.Argument as string);          //The length of the bitstrings
+            List<bool[]> results = new List<bool[]>();              //A collection of the bitstrings so far
+            /* Progress reporting */
             double nsquared = Math.Pow(2,n);                          //This is the target number of strings to generate
-            //Stuff below here is for calculating how to update the progress bar
+            //TODO cleanup
             double percentStep = nsquared / 100;
             if (percentStep == 0) percentStep = 1;
             double percentJump = nsquared / percentStep;
             if (percentJump == 0) percentJump = 1;
             else percentJump = 100 / percentJump;
             //Start timekeeping
-            MyStopwatch timer = new MyStopwatch();
-            double rowInterval = 0;        //Iterator for timer
-            int multiplier = 2;         //Increases the time between timeleft updates (exponential)
-            //Begin bitstring generation
-            for (double row = 1; row <= nsquared; row++)
-            {
-                rowInterval++;
-                if (rowInterval == 1)
-                {
-                    timer.start();
-                }
-                //Use StringBuilder because it's slightly faster
-                StringBuilder sbBitstring = new StringBuilder();
-                for (double column = 1; column <= n; column++)
-                {
-                    //double cutOffColumn;
-                    //cutoffs.TryGetValue(column, out cutOffColumn);
-                    double cutoff = nsquared / (int)Math.Pow(2, column);
-                    if (cutoffs[column] == 0)
-                    {
-                        cutoffs[column] = cutoff;
-                    }
-                    if ((row % (cutoff * 2)) == 1)
-                    {
-                        cutoffs[column] = row+(cutoff-1);
-                    }
-                    sbBitstring.Append((row <= cutoffs[column]) ? '1' : '0');
-                }
-                string bitstring = sbBitstring.ToString();
-                results.Add(bitstring);
+            //MyStopwatch timer = new MyStopwatch();
+            
+            double totalResults = 0.0;            //Total results for progress reporting
+            double rollingResultTally = 0;        //Iterator for timer
+            int multiplier = 2;                   //Increases the time between timeleft updates (exponential)
 
-                if (rowInterval == Math.Pow(2, multiplier))
+            /* Begin generating bitstrings */
+            bool[] first = new bool[n];       //First string is all false
+            bool[] target = new bool[n];      //End string is all true
+            for (short i = 0; i < n; i++)
+            {
+                first[i] = false;
+                target[i] = true;
+            }
+            bool[] intermediate = first;
+
+            results.Add(boolDuplicate(first));
+            totalResults++;
+
+            /* Generating loop */
+            do
+            {
+                intermediate = generateNextBitstring(intermediate);
+                results.Add(boolDuplicate(intermediate));
+                
+                //Increment counters
+                rollingResultTally++;
+                totalResults++;
+
+                //Check for validity
+                if (rollingResultTally == 10.0 || totalResults == nsquared)
                 {
-                    float averageTime = (float)timer.stop() / (float)Math.Pow(2, multiplier);
-                    secondsRemaining = (int)((averageTime * (nsquared - row)) / 1000.0) + 1;
-                    rowInterval = 0;
+                    //Check the bitstrings we've created and add valid sections to the list of one to be drawn
+                    checkBitstrings(results);
+                    results = new List<bool[]>();
+                    rollingResultTally = 0.0;
+                }
+
+                //Update the time left in exponential time
+                if (totalResults == Math.Pow(2, multiplier))
+                {
+                    //float averageTime = (float)timer.stop() / (float)Math.Pow(2, multiplier);
+                    //secondsRemaining = (int)((averageTime * (nsquared - totalResults)) / 1000.0) + 1;
                     multiplier++;
                 }
-                //After a certain amount of rows, we need to pass the data into a new thread that will evaluate
-                //if our bitstring candidates are valid combinations of courses.
-                if (isBetween(0.0, row % 10000, 0.99) || row == nsquared)
+
+                //Update the progress bar
+                if (isBetween(0.0, totalResults % percentStep, 0.99))
                 {
-                    //Make a new BackgroundWorker that will test our combinations
-                    BackgroundWorker checkstringsWorker = new BackgroundWorker();
-                    checkstringsWorker.WorkerSupportsCancellation = false;
-                    checkstringsWorker.WorkerReportsProgress = false;
-                    checkstringsWorker.DoWork += new DoWorkEventHandler(checkBitstrings);
-                    checkstringsWorker.RunWorkerAsync(results);
-                    results = new List<string>();
-                }
-                if (isBetween(0.0, row % percentStep, 0.99))
-                {
-                    //Update the progress bar and report a step, which should display combination on the GUI
+                    //Update the progress bar and report progress, which should display valid combinations on the GUI
                     this.Dispatcher.BeginInvoke(delegate { progress.Value += percentJump; });
                     (sender as BackgroundWorker).ReportProgress(0, null);
                 }
-                if ((nsquared < 5000) && isBetween(0, row % 4, 0.99))
+
+                //If we're performing too quickly, we need to slow down for the other threads to catch up.
+                if ((nsquared < 10000) && isBetween(0, totalResults % 2, 0.99))
                 {
-                    Thread.Sleep(1);
+                    Thread.Sleep(5);
                 }
-            }
+            } while (boolCompare(intermediate, target) == false);
+            /* After generating loop */
+
             //Because the math for the percent step/jump isn't 100% accurate, when we are done checking combinations
             // we should "cheat" and set the progress bar to 100.
             this.Dispatcher.BeginInvoke(delegate { progress.Value = 100; });
             (sender as BackgroundWorker).ReportProgress(100, null);
+
             //Cancel the time reporting functions
             counterDown.CancelAsync();
             secondsRemaining = 0;
             this.Dispatcher.BeginInvoke(updateTimeLabel);
-            timer.stop();
+        }
+
+        /* Generates the next bitstring.
+         * 
+         * @param old The previous bitstring
+         * 
+         * @return The old array modified as a new bitstring
+         */
+        private bool[] generateNextBitstring(bool[] old)
+        {
+            //Get length of the string
+            short lastIndex = (short)(old.Length - 1);
+            short targetIndex = 0;
+            //Check where the first false occurs from the right side of the "string"
+            //Flip that false to true
+            for (short n = lastIndex; n >= 0; n--)
+            {
+                if (old[n] == false)
+                {
+                    targetIndex = (short)(n + 1);
+                    old[n] = true;
+                    break;
+                }
+            }
+            //From that first false to the end of the string, mark falses
+            for (short n = targetIndex; n <= lastIndex; n++)
+            {
+                old[n] = false;
+            }
+            return old;
+        }
+
+        /* Copies values from one bool array to a new one.
+         * 
+         * @param array The bool array to copy from
+         * 
+         * @return The new bool array
+         */
+        private bool[] boolDuplicate(bool[] array)
+        {
+            bool[] newArray = new bool[array.Length];
+            for (short n = 0; n < array.Length; n++)
+            {
+                newArray[n] = array[n];
+            }
+            return newArray;
+        }
+        
+        /* Checks if two bool arrays are equal. IE: they have the same values in corresponding indices.
+         * 
+         * I'm not checking for length equality, so make sure the lengths of the arrays actually are equal
+         *  before calling this method.
+         *  
+         * @param array1 The first bool array to compare
+         * @param array2 The second bool array to compare
+         * 
+         * @return true if both arrays contain the same bools
+         */
+        private bool boolCompare(bool[] array1, bool[] array2)
+        {
+            for (short n = 0; n < array1.Length; n++)
+            {
+                if (array1[n] != array2[n]) return false;
+            }
+            return true;
         }
 
         /* Evaluates bitstrings as section combinations.
@@ -497,13 +562,39 @@ namespace ScheduleMaker
          */
         private void checkBitstrings(object sender, DoWorkEventArgs e)
         {
-            foreach (string bitstring in (e.Argument as List<string>))
+            foreach (bool[] bitstring in (e.Argument as List<bool[]>))
             {
                 List<Course> possibility = new List<Course>();
                 int iterator = 0;
-                foreach (char bit in bitstring)
+                foreach (bool bit in bitstring)
                 {
-                    if (bit == '1')
+                    if (bit == true)
+                    {
+                        possibility.Add(possibleSections[iterator]);
+                    }
+                    iterator++;
+                }
+                //If the combination works, add it to the list of possibilities
+                if (combinationSuccessful(possibility))
+                {
+                    lock (confirmedSections)
+                    {
+                        confirmedSections.Add(possibility);
+                    }
+                }
+            }
+        }
+
+        //TODO debug
+        private void checkBitstrings(List<bool[]> results)
+        {
+            foreach (bool[] bitstring in results)
+            {
+                List<Course> possibility = new List<Course>();
+                int iterator = 0;
+                foreach (bool bit in bitstring)
+                {
+                    if (bit == true)
                     {
                         possibility.Add(possibleSections[iterator]);
                     }
@@ -899,6 +990,10 @@ namespace ScheduleMaker
                 block.Width = ((tabBase.ActualWidth / 6) + .80f);
                 block.Height = (positionEnd - positionStart) * 6.7; //Each position is 6.7 points tall.
                 Label info = new Label();
+                if (labelText.ToLower().IndexOf("observation") > 0)
+                {
+                    labelText = labelText.Replace("Practice Study Observation", "PSO");
+                }
                 info.Content = labelText;
                 canvas.Children.Add(info);
                 switch (character)
@@ -906,31 +1001,31 @@ namespace ScheduleMaker
                     case 'm':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d);
-                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.TopProperty, 61d + (Double)(6.7 * positionStart));
                         info.SetValue(Canvas.LeftProperty, 45d);
                         break;
                     case 't':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d + ((tabBase.ActualWidth / 6) + .80f) * 1);
-                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.TopProperty, 61d + (Double)(6.7 * positionStart));
                         info.SetValue(Canvas.LeftProperty, 45d + ((tabBase.ActualWidth / 6) + .80f) * 1);
                         break;
                     case 'w':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d + ((tabBase.ActualWidth / 6) + .80f) * 2);
-                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.TopProperty, 61d + (Double)(6.7 * positionStart));
                         info.SetValue(Canvas.LeftProperty, 45d + ((tabBase.ActualWidth / 6) + .80f) * 2);
                         break;
                     case 'r':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d + ((tabBase.ActualWidth / 6) + .80f) * 3);
-                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.TopProperty, 61d + (Double)(6.7 * positionStart));
                         info.SetValue(Canvas.LeftProperty, 45d + ((tabBase.ActualWidth / 6) + .80f) * 3);
                         break;
                     case 'f':
                         block.SetValue(Canvas.TopProperty, 60d + (Double)(6.7 * positionStart));
                         block.SetValue(Canvas.LeftProperty, 40d + ((tabBase.ActualWidth / 6) + .80f) * 4);
-                        info.SetValue(Canvas.TopProperty, 62d + (Double)(6.7 * positionStart));
+                        info.SetValue(Canvas.TopProperty, 61d + (Double)(6.7 * positionStart));
                         info.SetValue(Canvas.LeftProperty, 45d + ((tabBase.ActualWidth / 6) + .80f) * 4);
                         break;
                 }
@@ -1050,8 +1145,10 @@ namespace ScheduleMaker
         private void btnChoose_Click(object sender, RoutedEventArgs e)
         {
             Popup popper = new Popup();
-            Grid parent = (Grid)(tabBase.SelectedItem);
+            Grid parent = (Grid)((TabItem)(tabBase.SelectedItem)).Content;
             List<Course> sections = new List<Course>();
+            sectionsInGrid.TryGetValue(parent, out sections);
+
             Border border = new Border();
             border.BorderBrush = new SolidColorBrush(Colors.Black);
             border.BorderThickness = new Thickness(2.0);
@@ -1059,17 +1156,20 @@ namespace ScheduleMaker
             StackPanel panel1 = new StackPanel();
             panel1.Background = new SolidColorBrush(Colors.LightGray);
 
-            /*
             Button button1 = new Button();
             button1.Content = "Close";
             button1.Margin = new Thickness(5.0);
-            button1.Click += new RoutedEventHandler(button1_Click);
-             * */
+            button1.Click += new RoutedEventHandler(buttonClosePopup_click);
+
             TextBlock textblock1 = new TextBlock();
             textblock1.Text = "";
+            foreach (Course result in sections)
+            {
+                textblock1.Text += "Course: " + result.parentClass + " " + result.type + " | CRN: " + result.crn + "\n";
+            }
             textblock1.Margin = new Thickness(5.0);
             panel1.Children.Add(textblock1);
-            //panel1.Children.Add(button1);
+            panel1.Children.Add(button1);
             border.Child = panel1;
 
             // Set the Child property of Popup to the border 
@@ -1077,9 +1177,19 @@ namespace ScheduleMaker
             popper.Child = border;
 
             // Set where the popup will show up on the screen.
-            popper.VerticalOffset = 25;
-            popper.HorizontalOffset = 25;
+            popper.VerticalOffset = 250;
+            popper.HorizontalOffset = 250;
             popper.IsOpen = true;
+        }
+
+        /* Called when the close button on a popup is clicked
+         * 
+         * Closes the popup.
+         */
+        private void buttonClosePopup_click(object sender, RoutedEventArgs e)
+        {
+            //HA! is all I have to say to this.
+            ((Popup)((Border)(((StackPanel)((Button)sender).Parent).Parent)).Parent).IsOpen = false;
         }
     }
 }
