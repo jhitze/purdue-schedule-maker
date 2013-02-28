@@ -84,7 +84,6 @@
     <Compile Include="Entity\Course.cs" />
     <Compile Include="Entity\school.cs" />
     <Compile Include="Factory\SchoolDataFactory.cs" />
-    <Compile Include="Factory\EntityToXMLFactory.cs" />
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
