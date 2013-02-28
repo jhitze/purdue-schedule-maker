@@ -1049,9 +1049,6 @@ namespace ScheduleMaker
             ((Popup)((Border)(((StackPanel)((Button)sender).Parent).Parent)).Parent).IsOpen = false;
         }
 
-        private void Button_Click_2(object sender, RoutedEventArgs e)
-        {
-            
-        }
+
     }
 }
