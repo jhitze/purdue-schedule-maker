@@ -46,14 +46,46 @@ namespace ScheduleMaker.Entity
         public string days;
         [XmlAttribute]
         public string instructor;
+        [XmlIgnore]
+        public bool linked
+        {
+            get
+            {
+                return (linkid != "0");
+            }
+
+        }
         [XmlAttribute]
         public string linkedtoid;
         [XmlAttribute]
         public string linkid;
         [XmlAttribute]
-        public string time;
+        public string time
+        {
+            set
+            {
+                string[] times = value.Split('-');
+                if (times.Length > 0) //if it splits
+                {
+                    startTime = times[0];
+                    endTime = times[1];
+                }
+                else //if it doesn't split
+                {
+                    //example would be "TBA"
+                    startTime = value;
+                    endTime = value;
+                }
+            }
+        }
+        [XmlIgnore]
+        public string startTime;
+        [XmlIgnore]
+        public string endTime;
         [XmlAttribute]
         public string type;
+        [XmlIgnore]
+        public bool excluded; //this defaults to false
     }
 
 
