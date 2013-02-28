@@ -16,6 +16,7 @@ using System.ComponentModel;
 using System.Threading;
 using ScheduleMaker.Entity;
 using ScheduleMaker.Factory;
+using System.Text.RegularExpressions;
 
 //For debug
 using System.Diagnostics;
@@ -26,6 +27,7 @@ namespace ScheduleMaker
     public partial class MainPage : UserControl
     {
         school allClasses;                      //all the school's departments/classes/sections
+        List<departmentClass> foundClasses = new List<departmentClass>();     //all the classes we've found by the search.
         List<Class> classes;                    //A list of all the classes
         private int classesIndex = 0;           //An index that represents the next free space in the classes list.
         List<Course> possibleSections;          //A list of sections that are about to be added to the scheduling
@@ -81,6 +83,10 @@ namespace ScheduleMaker
         {
             if (e.Key == Key.Enter)
             {
+                //our number finding regex string
+                string pattern = @"(\w+)(\d+)";
+                string departmentName = string.Empty;
+                string courseNumber = string.Empty;
                 //Make sure there's a chance for real input
                 if (courseInput.Text.Trim() == "") { courseInput.Text = ""; return; }
                 //Init data
@@ -94,125 +100,43 @@ namespace ScheduleMaker
                 string input = courseInput.Text;
                 //Clear the input box
                 courseInput.Text = "";
-                int position = -1;                   //The position of where the letters end and numbers start
-                input = input.Replace(" ", "");      //Make it fit the format we're expecting -- without spaces
-                //Check each character in the input string.
-                foreach (char thing in input)
+
+                input = Regex.Replace(input, @" ", string.Empty, RegexOptions.Multiline);
+                
+                var result = Regex.Match(input, pattern,RegexOptions.IgnorePatternWhitespace);
+                if (result.Groups.Count > 1)
                 {
-                    position++;
-                    //Attempt to convert each character to a number. If it fails, it's a letter.
-                    try
-                    {
-                        Convert.ToInt32(thing.ToString());
-                        break;
-                    }
-                    catch
-                    {
-                        continue;
-                    }
+                    departmentName = result.Groups[1].ToString();
+                    courseNumber = result.Groups[2].ToString();
                 }
-                if (position == 1) position++;  //We can't take a substring of length one. So cheat and call it 2.
-                string department = input.Substring(0, position).ToLower();
-                string number;                  //This is the course number ie "18000"
-                if (department.Length + 1 == input.Length) number = ""; 
-                else number = input.Substring(position);
+                else
+                {
+                    return;
+                }
+                
                 //Perform search
-                XmlReader reader = XmlReader.Create("classdata.xml");
-                do
+                findClasses(departmentName, courseNumber);
+                // All the class data is loaded
+                foreach (departmentClass found in foundClasses)
                 {
-                    //Navigate to the correct department
-                    if (!reader.ReadToFollowing("department"))
-                    {
-                        break;
-                    }
-                    
-                } while (reader.GetAttribute(0).ToLower() != department);
+                    classList.Items.Add(found);
+                }
+            }
+        }
 
-                bool block = false; //If we're in a class element that we're not looking for, we need to block
-                                    //reading the courses in that element.
-
-                //Read in all the classes in the department
-                do
+        private void findClasses(string departmentName, string courseNumber)
+        {
+            foreach (department dpt in allClasses.departments)
+            {
+                if (dpt.name == departmentName)
                 {
-                    reader.Read();  //Read the next node
-                    switch(reader.NodeType)
+                    foreach (departmentClass dptcls in dpt.classes)
                     {
-                        case XmlNodeType.Element:
-                            switch (reader.Name)
-                            {
-                                case "class":
-                                    //The node is a class element and we need to add it to the class list
-                                    //  if it's one we're looking for.
-                                    if (number == "" || reader.GetAttribute(0).ToLower().IndexOf(number) >= 0)
-                                    {
-                                        classes.Add(new Class());
-                                        classes[classesIndex] = new Class();
-                                        classes[classesIndex].name = reader.GetAttribute(3);
-                                        classes[classesIndex].description = reader.GetAttribute(2);
-                                        classes[classesIndex].credits = reader.GetAttribute(1);
-                                        classes[classesIndex].course = reader.GetAttribute(0);
-                                    }
-                                    else block = true;
-                                    break;
-                                case "section":
-                                    //If we're in a correct class element, we're going to get the data for the course.
-                                    if (!block)
-                                    {
-                                        Course course = new Course();
-
-                                        course.parentClass = classes[classesIndex].ToString();
-                                        course.availability = reader.GetAttribute("availability");
-                                        course.crn = reader.GetAttribute("crn");
-                                        course.days = reader.GetAttribute("days");
-                                        course.instructor = reader.GetAttribute("instructor");
-                                        course.type = reader.GetAttribute("type");
-                                        bool linked = reader.GetAttribute("linkdid") != "0";
-                                        if (linked)
-                                        {
-                                            course.linked = linked;
-                                            course.linkID = reader.GetAttribute("linkid");
-                                            course.linkedToID = reader.GetAttribute("linkedtoid");
-                                        }
-                                        if (reader.GetAttribute("time") != "TBA")
-                                        {
-                                            string[] time = reader.GetAttribute("time").Split('-');
-                                            course.startTime = time[0].Trim();
-                                            course.endTime = time[1].Trim();
-                                        }
-                                        else
-                                        {
-                                            course.startTime = "TBA";
-                                            course.endTime = "TBA";
-                                        }
-                                        course.excluded = false;
-
-                                        classes[classesIndex].sections.Add(course);
-                                    }
-                                    break;
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-                    //If the element is the end part (</element>), we need to do some cleaning up.
-                    if (reader.NodeType == XmlNodeType.EndElement)
-                    {
-                        if (reader.Name == "department") break; //If we leave the department we're looking in, return.
-                        if (reader.Name == "class")
+                        if (dptcls.course.Contains(courseNumber))
                         {
-                            if (block)
-                            {
-                                block = false;
-                            }
-                            else classesIndex++;
+                            foundClasses.Add(dptcls);
                         }
                     }
-                } while (!reader.EOF);
-                // All the class data is loaded
-                foreach (Class entry in classes)
-                {
-                    //Add all of the classes we found to the GUI class list
-                    classList.Items.Add(entry);
                 }
             }
         }
@@ -229,11 +153,9 @@ namespace ScheduleMaker
                 return;
             }
             //The class's information that we want to display is the class that was selected - the added item.
-            Class classToDisplay = (Class)e.AddedItems[0];
-            classInfoBox.Text = "";
-            classInfoBox.Text += classToDisplay.course + " - " + classToDisplay.name + '\n' + '\n';
-            classInfoBox.Text += classToDisplay.description + "\n";
-            classInfoBox.Text += classToDisplay.credits;
+            departmentClass selectedClass = (departmentClass)classList.SelectedItem;
+
+            classInfoBox.Text = selectedClass.getClassInfo();
             btnAddToList.IsEnabled = true;  //If there is an item selected, we can allow it to be added to the pending classes
         }
 
@@ -243,9 +165,9 @@ namespace ScheduleMaker
          */
         private void Button_Click_1(object sender, RoutedEventArgs e)
         {
-            Class classToMove = (Class)classList.SelectedItem;
-            lstFinalClasses.Items.Add(classToMove);
-            classList.Items.Remove(classToMove);
+            departmentClass selectedClass = (departmentClass)classList.SelectedItem;
+            lstFinalClasses.Items.Add(selectedClass);
+            classList.Items.Remove(selectedClass);
             classInfoBox.Text = "";                 //Make sure the information is clear, because we are deselecting
             btnSubmit.IsEnabled = true;             //Now that the final list is populated with at least one value,
                                                     // we can allow the submit button to be pushed.
@@ -268,30 +190,29 @@ namespace ScheduleMaker
                 }
                 return;
             }
-
-            Class classToDisplay = (Class)e.AddedItems[0];
+            departmentClass selectedClass = (departmentClass)lstFinalClasses.SelectedItem;
             txtFinalInfo.Text = "";
             int excludedSections = 0;
-            foreach (Course item in classToDisplay.sections)
+            lstExclude.Items.Clear();           //Clears the GUI list of sections for exclusion
+            foreach (classSection item in selectedClass.sections)
             {
-                if (item.excluded) excludedSections++;
+                if (item.excluded)
+                {
+                    excludedSections++;
+                }
+                else
+                {
+                    lstExclude.Items.Add(item); //add to the excludable list
+
+                }
             }
             if (excludedSections > 0)
             {
                 txtFinalInfo.Text += "YOU HAVE EXCLUDED " + excludedSections + " SECTIONS FROM THIS CLASS!\n";
             }
-            txtFinalInfo.Text += classToDisplay.course + " - " + classToDisplay.name + '\n' + '\n';
-            txtFinalInfo.Text += classToDisplay.description + "\n";
-            txtFinalInfo.Text += classToDisplay.credits;
+            txtFinalInfo.Text = selectedClass.getClassInfo();
             btnRemoveFromList.IsEnabled = true; //Allows items to be removed from list list
             btnSubmit.IsEnabled = true;
-            
-            lstExclude.Items.Clear();           //Clears the GUI list of sections for exclusion
-            //Add each section for the selected course to the excludable items list.
-            foreach (Course course in classToDisplay.sections)
-            {
-                lstExclude.Items.Add(course);
-            }
         }
 
         /* Called when the remove button is clicked.
@@ -300,9 +221,9 @@ namespace ScheduleMaker
          */
         private void btnRemoveFromList_Click(object sender, RoutedEventArgs e)
         {
-            Class classToRemove = (Class)lstFinalClasses.SelectedItem;
+            departmentClass selectedClass = (departmentClass)lstFinalClasses.SelectedItem;
 
-            lstFinalClasses.Items.Remove(classToRemove);
+            lstFinalClasses.Items.Remove(selectedClass);
             txtFinalInfo.Text = "";
             btnRemoveFromList.IsEnabled = false;
             lstExclude.Items.Clear();
@@ -1033,13 +954,8 @@ namespace ScheduleMaker
             {
                 return;
             }
-            Course course = (Course)e.AddedItems[0];
-            txtExclude.Text = "";
-            txtExclude.Text += "CRN: " + course.crn + "\n";
-            txtExclude.Text += "Meets on " + course.days + " at " + course.startTime + " - " + course.endTime + "\n";
-            txtExclude.Text += "Type: " + course.type + "\n";
-            txtExclude.Text += "Instructor: " + course.instructor + "\n";
-            txtExclude.Text += "\nAvailability: " + course.availability;
+            classSection selectedSection = (classSection)lstExclude.SelectedItem;
+            txtExclude.Text = selectedSection.getSectionInfo();
         }
 
         /* Called when the tab removal button is clicked.
@@ -1067,20 +983,20 @@ namespace ScheduleMaker
          */
         private void btnExclude_Click_1(object sender, RoutedEventArgs e)
         {
-            Course exclusion = (Course)lstExclude.SelectedItem;
-            bool currentlyExcluded = exclusion.excluded;
+            classSection selectedSection = (classSection)lstExclude.SelectedItem;
+            bool currentlyExcluded = selectedSection.excluded;
             if (currentlyExcluded)
             {
-                exclusion.excluded = false;
+                selectedSection.excluded = false;
             }
             else
             {
-                exclusion.excluded = true;
+                selectedSection.excluded = true;
             }
             //Update the text for the list
-            lstExclude.Items.Remove(exclusion);
-            lstExclude.Items.Add(exclusion);
-            lstExclude.SelectedItem = exclusion;
+            lstExclude.Items.Remove(selectedSection);
+            lstExclude.Items.Add(selectedSection);
+            lstExclude.SelectedItem = selectedSection;
         }
 
         private void btnChoose_Click(object sender, RoutedEventArgs e)

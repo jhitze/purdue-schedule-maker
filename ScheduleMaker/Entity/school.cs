@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Xml;
 using System.Xml.Serialization;
+using System.Text.RegularExpressions;
 
 namespace ScheduleMaker.Entity
 {
@@ -24,8 +25,20 @@ namespace ScheduleMaker.Entity
     
     public class departmentClass
     {
+        [XmlIgnore]
+        private string _course;
         [XmlAttribute]
-        public string course;
+        public string course
+        {
+            get { return _course; }
+            set
+            {
+                _course = value;
+                int.TryParse(Regex.Replace(_course, @"(\w+)", string.Empty, RegexOptions.Multiline), out CourseNumber);
+            }
+        }
+        [XmlIgnore]
+        public int CourseNumber;
         [XmlAttribute]
         public string credits;
         [XmlAttribute]
@@ -34,6 +47,19 @@ namespace ScheduleMaker.Entity
         public string name;
         [XmlElement("section")]
         public List<classSection> sections;
+
+        public string getClassInfo()
+        {
+            return course + " - " + name + '\n' 
+                       + '\n'
+                       + description + "\n" 
+                       + credits;
+        }
+        
+        public override string ToString()
+        {
+            return course;
+        }
     }
 
     public class classSection
@@ -59,13 +85,18 @@ namespace ScheduleMaker.Entity
         public string linkedtoid;
         [XmlAttribute]
         public string linkid;
+        private string _time;
         [XmlAttribute]
         public string time
         {
+            get
+            {
+                return _time;
+            }
             set
             {
                 string[] times = value.Split('-');
-                if (times.Length > 0) //if it splits
+                if (times.Length > 1) //if it splits
                 {
                     startTime = times[0];
                     endTime = times[1];
@@ -76,6 +107,7 @@ namespace ScheduleMaker.Entity
                     startTime = value;
                     endTime = value;
                 }
+                _time = value;
             }
         }
         [XmlIgnore]
@@ -86,6 +118,25 @@ namespace ScheduleMaker.Entity
         public string type;
         [XmlIgnore]
         public bool excluded; //this defaults to false
+
+        public string getSectionInfo()
+        {
+            return "CRN: " + crn + "\n"
+                + "Meets on " + days + " at " + startTime + " - " + endTime + "\n"
+                + "Type: " + type + "\n"
+                + "Instructor: " + instructor + "\n"
+                + "\nAvailability: " + availability;
+        }
+
+        public override string ToString()
+        {
+            if (excluded)
+            {
+                return "EXCLUDED";
+            }
+            return crn;
+        }
+        
     }
 
 
