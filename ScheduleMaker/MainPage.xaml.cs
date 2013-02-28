@@ -14,6 +14,8 @@ using System.Windows.Browser;
 using System.Windows.Controls.Primitives;
 using System.ComponentModel;
 using System.Threading;
+using ScheduleMaker.Entity;
+using ScheduleMaker.Factory;
 
 //For debug
 using System.Diagnostics;
@@ -23,6 +25,7 @@ namespace ScheduleMaker
 {
     public partial class MainPage : UserControl
     {
+        school allClasses;                      //all the school's departments/classes/sections
         List<Class> classes;                    //A list of all the classes
         private int classesIndex = 0;           //An index that represents the next free space in the classes list.
         List<Course> possibleSections;          //A list of sections that are about to be added to the scheduling
@@ -46,6 +49,7 @@ namespace ScheduleMaker
         public MainPage()
         {
             InitializeComponent();
+            allClasses = (school)SchoolDataFactory.retrieveFromResourceXML(typeof(school), "classdata.xml");
             btnAddToList.IsEnabled = false;
             btnRemoveFromList.IsEnabled = false;
             btnSubmit.IsEnabled = false;
@@ -341,7 +345,7 @@ namespace ScheduleMaker
          * 
          * @return A boolean value that is true if the times intersect. False otherwise.
          */
-        private bool doTimesIntersect(String time1, String time2)
+        public bool doTimesIntersect(String time1, String time2)
         {
             String startTime, endTime;
             startTime = time1.Split("-".ToCharArray(), StringSplitOptions.None)[0];
@@ -1127,6 +1131,11 @@ namespace ScheduleMaker
         {
             //HA! is all I have to say to this.
             ((Popup)((Border)(((StackPanel)((Button)sender).Parent).Parent)).Parent).IsOpen = false;
+        }
+
+        private void Button_Click_2(object sender, RoutedEventArgs e)
+        {
+            
         }
     }
 }
