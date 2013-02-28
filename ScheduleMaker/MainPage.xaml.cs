@@ -30,14 +30,14 @@ namespace ScheduleMaker
         List<departmentClass> foundClasses = new List<departmentClass>();     //all the classes we've found by the search.
         List<Class> classes;                    //A list of all the classes
         private int classesIndex = 0;           //An index that represents the next free space in the classes list.
-        List<Course> possibleSections;          //A list of sections that are about to be added to the scheduling
+        List<classSection> possibleSections;          //A list of sections that are about to be added to the scheduling
         int totalClassCount = 0;                //The total number of classes
-        List<List<Course>> confirmedSections;   //A list of lists of courses grouped by schedule grid
+        List<List<classSection>> confirmedSections;   //A list of lists of courses grouped by schedule grid
         int tabCount = 0;                       //A number used to label the tabs.
         int tbaCount = 0;                       //The number of classes that have times of TBA. We need a count to track position.
         int secondsRemaining = 0;               //Seconds remaining until bitstrings are done.
         BackgroundWorker counterDown;           //The background worker that updates the timeleft label.
-        Dictionary<Grid, List<Course>> sectionsInGrid;      //The sections that are in each grid.
+        Dictionary<Grid, List<classSection>> sectionsInGrid;      //The sections that are in each grid.
 
         MyStopwatch testTimer;
         float averageTime = 0f;
@@ -55,7 +55,7 @@ namespace ScheduleMaker
             btnAddToList.IsEnabled = false;
             btnRemoveFromList.IsEnabled = false;
             btnSubmit.IsEnabled = false;
-            confirmedSections = new List<List<Course>>();
+            confirmedSections = new List<List<classSection>>();
             lstExclude.Visibility = System.Windows.Visibility.Collapsed;    //These controls need to be invisible at the start
             txtExclude.Visibility = System.Windows.Visibility.Collapsed;
             btnExclude.Visibility = System.Windows.Visibility.Collapsed;
@@ -453,7 +453,7 @@ namespace ScheduleMaker
          */
         private void checkBitstring(bool[] bitstring)
         {
-            List<Course> possibility = new List<Course>();
+            List<classSection> possibility = new List<classSection>();
             int iterator = 0;
             foreach (bool bit in bitstring)
             {
@@ -479,25 +479,25 @@ namespace ScheduleMaker
          * 
          * @return A boolean value - true if the combination is valid, false otherwise.
          */
-        private bool combinationSuccessful(List<Course> possibilities)
+        private bool combinationSuccessful(List<classSection> possibilities)
         {
             //First check that all classes are represented.
             int classCount = totalClassCount;
-            Dictionary<string, List<Course>> classesDict = new Dictionary<string, List<Course>>();  //"class", List of sections
-            foreach (Course current in possibilities)
+            Dictionary<string, List<classSection>> classesDict = new Dictionary<string, List<classSection>>();  //"class", List of sections
+            foreach (classSection current in possibilities)
             {
                 string parent = current.parentClass;
                 if (!(classesDict.ContainsKey(parent)))
                 {
                     //If the class name isn't in the dictionary, add it.
-                    List<Course> toAdd = new List<Course>();
+                    List<classSection> toAdd = new List<classSection>();
                     toAdd.Add(current);
                     classesDict.Add(parent, toAdd);
                 }
                 else
                 {
                     //Add the current course under the parent class name in the dictionary.
-                    List<Course> courses;
+                    List<classSection> courses;
                     classesDict.TryGetValue(current.parentClass, out courses);
                     courses.Add(current);
                 }
@@ -512,16 +512,16 @@ namespace ScheduleMaker
                 //Now let's rule out if there are two sections with the same linkID.
                 foreach (string key in classesDict.Keys)
                 {
-                    List<Course> classSections = new List<Course>();
+                    List<classSection> classSections = new List<classSection>();
                     List<string> links = new List<string>();
                     List<string> linksTo = new List<string>();
                     classesDict.TryGetValue(key, out classSections);
-                    foreach (Course linkTestCourse in classSections)
+                    foreach (classSection linkTestCourse in classSections)
                     {
-                        if (!links.Contains(linkTestCourse.linkID))
+                        if (!links.Contains(linkTestCourse.linkid))
                         {
                             //If our link doesn't exist in the list yet, add it.
-                            links.Add(linkTestCourse.linkID);
+                            links.Add(linkTestCourse.linkid);
                         }
                         //If it's already in the list, the combination is not allowed.
                         else return false;
@@ -529,20 +529,20 @@ namespace ScheduleMaker
                         //Check that each class is linked uniquely. IE: A1 and A2 link to A3. Only A1 OR A2 are allowed.
                         if (linkTestCourse.linked)
                         {
-                            if (!linksTo.Contains(linkTestCourse.linkedToID))
+                            if (!linksTo.Contains(linkTestCourse.linkedtoid))
                             {
-                                linksTo.Add(linkTestCourse.linkedToID);
+                                linksTo.Add(linkTestCourse.linkedtoid);
                             }
                             else return false;
                         }
                     }
                     //Also, we know that there are courses with the same linkID, let's make sure their link exists.
-                    foreach (Course linkedToTestCourse in classSections)
+                    foreach (classSection linkedToTestCourse in classSections)
                     {
                         //If the course isn't linked, then there is no point in looking to make sure it's not linked to something
                         if (!linkedToTestCourse.linked) continue;
                         //If the linkID this course is linked to isn't present in the list, then this combination sucks.
-                        if (!links.Contains(linkedToTestCourse.linkedToID))
+                        if (!links.Contains(linkedToTestCourse.linkedtoid))
                         {
                             return false;
                         }
@@ -550,8 +550,8 @@ namespace ScheduleMaker
                 }
                 //Check for intersections
                 //Put each day's meetings into a dictionary organized by day.
-                Dictionary<char, List<Course>> dayMeetingsDict = new Dictionary<char, List<Course>>();
-                foreach (Course timeIntersection in possibilities)
+                Dictionary<char, List<classSection>> dayMeetingsDict = new Dictionary<char, List<classSection>>();
+                foreach (classSection timeIntersection in possibilities)
                 {
                     if (timeIntersection.days.ToLower().Equals("tba")
                         || timeIntersection.days.ToLower().Equals(" ")) continue; //We don't care about TBA courses
@@ -560,13 +560,13 @@ namespace ScheduleMaker
                         //If the day isn't in the dictionary already, add it
                         if (!dayMeetingsDict.Keys.Contains(day))
                         {
-                            List<Course> tempList = new List<Course>();
+                            List<classSection> tempList = new List<classSection>();
                             tempList.Add(timeIntersection);
                             dayMeetingsDict.Add(day, tempList);
                         }
                         else
                         {
-                            List<Course> currentList = new List<Course>();
+                            List<classSection> currentList = new List<classSection>();
                             dayMeetingsDict.TryGetValue(day, out currentList);
                             currentList.Add(timeIntersection);
                         }
@@ -575,11 +575,11 @@ namespace ScheduleMaker
                 //Now iterate through the dictionary day by day and check for intersections within.
                 foreach (var kv in dayMeetingsDict)
                 {
-                    List<Course> meetingsThisDay = kv.Value;
+                    List<classSection> meetingsThisDay = kv.Value;
                     if (meetingsThisDay.Count == 1) continue; //If there's only 1 meeting that day, no need to check.
-                    foreach (Course course in meetingsThisDay)
+                    foreach (classSection course in meetingsThisDay)
                     {
-                        foreach (Course course2 in meetingsThisDay)
+                        foreach (classSection course2 in meetingsThisDay)
                         {
                             if (course2 == course) continue;
                             string course1Time = course.startTime + " - " + course.endTime;
@@ -607,18 +607,18 @@ namespace ScheduleMaker
                 btnSubmit.IsEnabled = true;    //Reenable the submit button now that we're (mostly) done.
                 //Thread.Sleep(500);             //Give the checking worker some time to finish.
             }
-            List<List<Course>> reportingList = new List<List<Course>>();
+            List<List<classSection>> reportingList = new List<List<classSection>>();
             lock (confirmedSections)
             {
-                foreach (List<Course> classGroup in confirmedSections)
+                foreach (List<classSection> classGroup in confirmedSections)
                 {
                     reportingList.Add(classGroup);
                 }
                 //Clear the list since we used them all.
-                confirmedSections = new List<List<Course>>();
+                confirmedSections = new List<List<classSection>>();
             }
             if ( reportingList.Count < 1 ) return;  //If there are no elements, draw nothing.
-            foreach (List<Course> classGroup in reportingList)
+            foreach (List<classSection> classGroup in reportingList)
             {
                 //Make a grid and tab
                 tabCount++;
@@ -653,8 +653,8 @@ namespace ScheduleMaker
 
                 //Draw each course on the grid
                 tbaCount = 0;
-                List<Course> coursesInGroup = new List<Course>();
-                foreach (Course course in classGroup)
+                List<classSection> coursesInGroup = new List<classSection>();
+                foreach (classSection course in classGroup)
                 {
                     drawSchedule(grid, course.startTime, course.endTime, course.days, course.parentClass + "\n" + course.type);
                     coursesInGroup.Add(course);
@@ -678,11 +678,11 @@ namespace ScheduleMaker
                 tabBase.Items.RemoveAt(tabIter);
             }
             totalClassCount = lstFinalClasses.Items.Count;
-            possibleSections = new List<Course>();              //All of the possible courses
+            possibleSections = new List<classSection>();              //All of the possible courses
             progress.Value = 0;                                 //Reset the progress bar
             tabCount = 0;                                       //Reset the tab numberings.
             secondsRemaining = 0;                               //Reset timeleft
-            sectionsInGrid = new Dictionary<Grid, List<Course>>();  //Reset the grid dictionary
+            sectionsInGrid = new Dictionary<Grid, List<classSection>>();  //Reset the grid dictionary
             //Start finding bitstrings in the background
             BackgroundWorker bitstringworker = new BackgroundWorker();
             bitstringworker.WorkerSupportsCancellation = false;
@@ -691,14 +691,17 @@ namespace ScheduleMaker
             bitstringworker.ProgressChanged += new ProgressChangedEventHandler(reportProgress);
             //Count how many courses there are so we know how many bitstrings to generate
             int totalCourses = 0;
-            foreach (Class finalClass in lstFinalClasses.Items)
+            foreach (departmentClass finalClass in lstFinalClasses.Items)
             {
-                foreach (Course course in finalClass.sections)
+                foreach (classSection section in finalClass.sections)
                 {
                     //If course is not in exlusions
-                    if (!course.excluded)
+                    if (!section.excluded)
                     {
-                        possibleSections.Add(course);
+                        //temporary crappy code to fill in the parent class information for sections
+                        section.parentClass = finalClass.name;
+                        //end temporary crappy code
+                        possibleSections.Add(section);
                         totalCourses++;
                     }
                 }
@@ -1003,7 +1006,7 @@ namespace ScheduleMaker
         {
             Popup popper = new Popup();
             Grid parent = (Grid)((TabItem)(tabBase.SelectedItem)).Content;
-            List<Course> sections = new List<Course>();
+            List<classSection> sections = new List<classSection>();
             sectionsInGrid.TryGetValue(parent, out sections);
 
             Border border = new Border();
@@ -1020,7 +1023,7 @@ namespace ScheduleMaker
 
             TextBlock textblock1 = new TextBlock();
             textblock1.Text = "";
-            foreach (Course result in sections)
+            foreach (classSection result in sections)
             {
                 textblock1.Text += "Course: " + result.parentClass + " " + result.type + " | CRN: " + result.crn + "\n";
             }

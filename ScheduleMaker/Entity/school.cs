@@ -73,6 +73,8 @@ namespace ScheduleMaker.Entity
         [XmlAttribute]
         public string instructor;
         [XmlIgnore]
+        public string parentClass;
+        [XmlIgnore]
         public bool linked
         {
             get
